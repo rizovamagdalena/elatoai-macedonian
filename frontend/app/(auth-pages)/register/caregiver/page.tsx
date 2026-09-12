@@ -1,0 +1,182 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { ArrowLeft, UserRound } from "lucide-react";
+import { createClient } from "@/utils/supabase/server";
+
+export default async function CaregiverRegisterPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ message?: string }>;
+}) {
+    const params = await searchParams;
+
+    async function registerCaregiver(formData: FormData) {
+        "use server";
+
+        const name = formData.get("name") as string;
+        const email = formData.get("email") as string;
+        const password = formData.get("password") as string;
+
+        const supabase = createClient();
+
+        const { data, error } = await supabase.auth.signUp({
+            email,
+            password,
+        });
+
+        if (error) {
+            redirect(
+                `/register/caregiver?message=${encodeURIComponent(
+                    error.message
+                )}`
+            );
+        }
+
+        if (!data.user) {
+            redirect(
+                "/register/caregiver?message=Could not create the account"
+            );
+        }
+
+        const { error: profileError } = await supabase
+            .from("caregiver_profiles")
+            .insert({
+                user_id: data.user.id,
+                name,
+            });
+
+        if (profileError) {
+            redirect(
+                `/register/caregiver?message=${encodeURIComponent(
+                    profileError.message
+                )}`
+            );
+        }
+
+        redirect("/home");
+    }
+
+    return (
+        <div className="w-full max-w-md px-6 py-12">
+            <Link
+                href="/register"
+                className="mb-8 inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+                <ArrowLeft className="h-4 w-4" />
+                Back
+            </Link>
+
+            <div className="mb-8">
+                <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+                    <UserRound className="h-6 w-6" />
+                </div>
+
+                <h1 className="text-3xl font-semibold tracking-tight">
+                    Create your caregiver account
+                </h1>
+
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                    Create an account to set up and manage Elato for an older
+                    family member.
+                </p>
+            </div>
+
+            {params.message && (
+                <div className="mb-6 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                    {params.message}
+                </div>
+            )}
+
+            <form action={registerCaregiver} className="space-y-5">
+                <div className="space-y-2">
+                    <label
+                        htmlFor="name"
+                        className="text-sm font-medium"
+                    >
+                        Your name
+                    </label>
+
+                    <input
+                        id="name"
+                        name="name"
+                        type="text"
+                        placeholder="e.g. Magdalena"
+                        required
+                        className="h-11 w-full rounded-lg border border-border bg-background px-4 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    />
+                </div>
+
+                <div className="space-y-2">
+                    <label
+                        htmlFor="email"
+                        className="text-sm font-medium"
+                    >
+                        Email address
+                    </label>
+
+                    <input
+                        id="email"
+                        name="email"
+                        type="email"
+                        placeholder="you@example.com"
+                        required
+                        className="h-11 w-full rounded-lg border border-border bg-background px-4 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    />
+                </div>
+
+                <div className="space-y-2">
+                    <label
+                        htmlFor="password"
+                        className="text-sm font-medium"
+                    >
+                        Password
+                    </label>
+
+                    <input
+                        id="password"
+                        name="password"
+                        type="password"
+                        placeholder="Create a password"
+                        required
+                        className="h-11 w-full rounded-lg border border-border bg-background px-4 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    />
+                </div>
+
+                <div className="space-y-2">
+                    <label
+                        htmlFor="confirm-password"
+                        className="text-sm font-medium"
+                    >
+                        Confirm password
+                    </label>
+
+                    <input
+                        id="confirm-password"
+                        name="confirm-password"
+                        type="password"
+                        placeholder="Enter your password again"
+                        required
+                        className="h-11 w-full rounded-lg border border-border bg-background px-4 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    />
+                </div>
+
+                <button
+                    type="submit"
+                    className="h-11 w-full rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                >
+                    Create caregiver account
+                </button>
+            </form>
+
+            <p className="mt-6 text-center text-sm text-muted-foreground">
+                Already have an account?{" "}
+                <Link
+                    href="/login"
+                    className="font-medium text-foreground underline underline-offset-4 hover:text-primary"
+                >
+                    Sign in
+                </Link>
+            </p>
+        </div>
+    );
+}

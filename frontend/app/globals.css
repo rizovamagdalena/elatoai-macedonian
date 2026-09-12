@@ -1,0 +1,119 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    :root {
+        --background: 210 40% 98%;
+        --foreground: 222 47% 11%;
+
+        --card: 0 0% 100%;
+        --card-foreground: 222 47% 11%;
+
+        --popover: 0 0% 100%;
+        --popover-foreground: 222 47% 11%;
+
+        --primary: 187 30% 42%;
+        --primary-foreground: 0 0% 100%;
+
+        --secondary: 210 40% 96%;
+        --secondary-foreground: 222 47% 11%;
+
+        --muted: 210 40% 96%;
+        --muted-foreground: 215 16% 47%;
+
+        --accent: 187 25% 93%;
+        --accent-foreground: 187 35% 30%;
+
+        --destructive: 0 72% 51%;
+        --destructive-foreground: 0 0% 100%;
+
+        --border: 214 32% 91%;
+        --input: 214 32% 91%;
+        --ring: 187 30% 42%;
+
+        --radius: 0.75rem;
+
+        --chart-1: 187 30% 42%;
+        --chart-2: 160 35% 45%;
+        --chart-3: 200 45% 45%;
+        --chart-4: 40 80% 60%;
+        --chart-5: 15 70% 60%;
+    }
+
+    .dark {
+        --background: 222 47% 8%;
+        --foreground: 210 40% 98%;
+
+        --card: 222 40% 11%;
+        --card-foreground: 210 40% 98%;
+
+        --popover: 222 40% 11%;
+        --popover-foreground: 210 40% 98%;
+
+        --primary: 187 35% 55%;
+        --primary-foreground: 222 47% 11%;
+
+        --secondary: 217 33% 17%;
+        --secondary-foreground: 210 40% 98%;
+
+        --muted: 217 33% 17%;
+        --muted-foreground: 215 20% 65%;
+
+        --accent: 187 25% 18%;
+        --accent-foreground: 187 35% 75%;
+
+        --destructive: 0 62% 40%;
+        --destructive-foreground: 210 40% 98%;
+
+        --border: 217 33% 18%;
+        --input: 217 33% 18%;
+        --ring: 187 35% 55%;
+
+        --chart-1: 187 35% 55%;
+        --chart-2: 160 45% 50%;
+        --chart-3: 200 50% 55%;
+        --chart-4: 40 80% 60%;
+        --chart-5: 15 75% 60%;
+    }
+}
+
+@layer utilities {
+    .scrollbar-hide {
+        -ms-overflow-style: none; /* IE and Edge */
+        scrollbar-width: none; /* Firefox */
+    }
+
+    .scrollbar-hide::-webkit-scrollbar {
+        display: none; /* Chrome, Safari and Opera */
+    }
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+    body {
+        @apply bg-background text-foreground;
+    }
+
+    .bg-nav-bar {
+        @apply backdrop-blur;
+    }
+
+    .light .bg-nav-bar {
+        @apply bg-gray-50 bg-opacity-70;
+    }
+
+    .dark .bg-nav-bar {
+        @apply bg-black bg-opacity-70;
+    }
+}
+
+.text-stroke-black {
+    -webkit-text-stroke-color: black;
+  }
+  
+  .text-stroke-2 {
+    -webkit-text-stroke-width: 1px;
+  }
