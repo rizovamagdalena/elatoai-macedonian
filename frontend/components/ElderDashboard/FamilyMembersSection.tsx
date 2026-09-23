@@ -3,11 +3,10 @@
 import { useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { IFamilyMember, addFamilyMember, deleteFamilyMember } from "@/db/family_members";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Users } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 
 export default function FamilyMembersSection({
     elderId,
@@ -52,86 +51,109 @@ export default function FamilyMembersSection({
     };
 
     return (
-        <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="flex items-center gap-2 text-base">
-                    <Users size={18} />
-                    Family members
-                </CardTitle>
-                <Button size="sm" variant="outline" onClick={() => setShowForm(!showForm)}>
-                    <Plus size={14} className="mr-1" />
-                    Add
-                </Button>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3">
-                {familyMembers.length === 0 && !showForm && (
-                    <p className="text-sm text-gray-500">No family members on file yet.</p>
-                )}
+        <div className="font-[family-name:var(--font-sans)]">
+            {familyMembers.length === 0 && !showForm && (
+                <p className="text-sm text-[#22281F]/50">
+                    Nothing on file yet.
+                </p>
+            )}
 
+            <div className="divide-y divide-[#22281F]/10">
                 {familyMembers.map((member) => (
                     <div
                         key={member.family_member_id}
-                        className="flex items-start justify-between border rounded-md p-3"
+                        className="flex items-start justify-between gap-4 py-4"
                     >
                         <div>
-                            <p className="text-sm font-medium">
+                            <p className="text-sm font-medium text-[#22281F]">
                                 {member.name}
                                 {member.relation && (
-                                    <span className="text-gray-500 font-normal">
+                                    <span className="font-normal text-[#22281F]/50">
                                         {" "}
                                         — {member.relation}
                                     </span>
                                 )}
                             </p>
+
                             {member.notes && (
-                                <p className="text-xs text-gray-500 mt-1">{member.notes}</p>
+                                <p className="mt-1.5 text-xs text-[#22281F]/50">
+                                    {member.notes}
+                                </p>
                             )}
                         </div>
+
                         <Button
                             size="icon"
                             variant="ghost"
+                            className="shrink-0 text-[#22281F]/30 hover:bg-[#A8552F]/10 hover:text-[#A8552F]"
                             onClick={() => handleDelete(member.family_member_id)}
                         >
                             <Trash2 size={14} />
                         </Button>
                     </div>
                 ))}
+            </div>
 
-                {showForm && (
-                    <div className="flex flex-col gap-3 border rounded-md p-3">
-                        <div className="flex flex-col gap-1">
-                            <Label htmlFor="fam-name">Name</Label>
-                            <Input
-                                id="fam-name"
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
-                                placeholder="e.g. Ana"
-                            />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <Label htmlFor="fam-relation">Relation</Label>
-                            <Input
-                                id="fam-relation"
-                                value={relation}
-                                onChange={(e) => setRelation(e.target.value)}
-                                placeholder="e.g. daughter"
-                            />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <Label htmlFor="fam-notes">Notes (optional)</Label>
-                            <Input
-                                id="fam-notes"
-                                value={notes}
-                                onChange={(e) => setNotes(e.target.value)}
-                                placeholder="e.g. lives in Skopje, calls Sundays"
-                            />
-                        </div>
-                        <Button onClick={handleAdd} disabled={submitting}>
-                            {submitting ? "Saving..." : "Save family member"}
-                        </Button>
+            {showForm && (
+                <div className="mt-4 flex flex-col gap-4 rounded-2xl bg-[#EFEAE0]/60 p-5">
+                    <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="fam-name" className="text-[#22281F]/70">
+                            Name
+                        </Label>
+                        <Input
+                            id="fam-name"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            placeholder="e.g. Ana"
+                            className="rounded-lg border-[#22281F]/15 bg-white focus-visible:ring-[#4B6355]"
+                        />
                     </div>
-                )}
-            </CardContent>
-        </Card>
+
+                    <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="fam-relation" className="text-[#22281F]/70">
+                            Relation
+                        </Label>
+                        <Input
+                            id="fam-relation"
+                            value={relation}
+                            onChange={(e) => setRelation(e.target.value)}
+                            placeholder="e.g. daughter"
+                            className="rounded-lg border-[#22281F]/15 bg-white focus-visible:ring-[#4B6355]"
+                        />
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="fam-notes" className="text-[#22281F]/70">
+                            Notes (optional)
+                        </Label>
+                        <Input
+                            id="fam-notes"
+                            value={notes}
+                            onChange={(e) => setNotes(e.target.value)}
+                            placeholder="e.g. lives in Skopje, calls Sundays"
+                            className="rounded-lg border-[#22281F]/15 bg-white focus-visible:ring-[#4B6355]"
+                        />
+                    </div>
+
+                    <Button
+                        onClick={handleAdd}
+                        disabled={submitting}
+                        className="rounded-full bg-[#4B6355] text-[#F7F4EC] hover:bg-[#3B4F44]"
+                    >
+                        {submitting ? "Saving..." : "Save family member"}
+                    </Button>
+                </div>
+            )}
+
+            <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setShowForm(!showForm)}
+                className="mt-4 gap-1.5 rounded-full text-[#4B6355] hover:bg-[#DCE3D6]/60 hover:text-[#3B4F44]"
+            >
+                <Plus size={14} />
+                {showForm ? "Cancel" : "Add family member"}
+            </Button>
+        </div>
     );
 }

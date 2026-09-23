@@ -49,7 +49,7 @@ void enterSleep() {
   Serial.flush();
 
 #ifdef TOUCH_MODE
-  touch_pad_intr_disable(TOUCH_PAD_INTR_MASK_ALL);
+  touch_pad_intr_disable();
   while (touchRead(TOUCH_PAD_NUM2) > TOUCH_THRESHOLD) {
     delay(50);
   }
@@ -125,7 +125,7 @@ void setupWiFi() {
 
 void touchTask(void *parameter) {
   touch_pad_init();
-  touch_pad_config(TOUCH_PAD_NUM2);
+  touch_pad_config(TOUCH_PAD_NUM2, TOUCH_THRESHOLD);
 
   bool touched = false;
   unsigned long pressStartTime = 0;
@@ -203,15 +203,15 @@ void setup() {
   btn->detachSingleClickEvent();
 #endif
 
-  // Pin audio tasks to Core 1 (application core)
-  xTaskCreatePinnedToCore(ledTask,    // Function
-                          "LED Task", // Name
-                          4096,       // Stack size
-                          NULL,       // Parameters
-                          5,          // Priority
-                          NULL,       // Handle
-                          1           // Core 1 (application core)
-  );
+  // // Pin audio tasks to Core 1 (application core)
+  // xTaskCreatePinnedToCore(ledTask,    // Function
+  //                         "LED Task", // Name
+  //                         4096,       // Stack size
+  //                         NULL,       // Parameters
+  //                         5,          // Priority
+  //                         NULL,       // Handle
+  //                         1           // Core 1 (application core)
+  // );
 
   xTaskCreatePinnedToCore(audioStreamTask, // Function
                           "Speaker Task",  // Name

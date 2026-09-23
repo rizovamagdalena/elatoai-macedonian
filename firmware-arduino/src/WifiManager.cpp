@@ -66,16 +66,15 @@ bool isDeviceRegistered() {
 
 void connectCb() {
   Serial.println("On connecting to Wifi");
-  if (isDeviceRegistered())  {
-    if (otaState == OTA_IN_PROGRESS) {
-        performOTAUpdate();
-    } else if (otaState == OTA_COMPLETE) {
-        markOTAUpdateComplete();
-        ESP.restart();
-    } else {
-        websocketSetup(ws_server, ws_port, ws_path);
-    }
-  } 
+
+  if (otaState == OTA_IN_PROGRESS) {
+      performOTAUpdate();
+  } else if (otaState == OTA_COMPLETE) {
+      markOTAUpdateComplete();
+      ESP.restart();
+  } else {
+      websocketSetup(ws_server, ws_port, ws_path);
+  }
 }
 
 /**
@@ -493,6 +492,7 @@ bool WIFIMANAGER::tryConnect() {
         logMessage("[WIFI] Connection successful\n");
         logMessage("[WIFI] SSID   : " + WiFi.SSID() + "\n");
         logMessage("[WIFI] IP     : " + WiFi.localIP().toString() + "\n");
+        logMessage("[WIFI] MAC    : " + WiFi.macAddress() + "\n");
         connectCb();
         stopSoftAP();
         return true;

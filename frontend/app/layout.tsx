@@ -4,6 +4,8 @@ import { Karla } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { BRAND } from "@/lib/branding";
+import { Fraunces, Public_Sans } from "next/font/google";
+
 
 const karla = Karla({
     subsets: ["latin"],
@@ -29,6 +31,18 @@ export const viewport: Viewport = {
     width: "device-width",
     initialScale: 1,
 };
+
+const fraunces = Fraunces({
+    subsets: ["latin", "latin-ext"],
+    variable: "--font-display",
+    display: "swap",
+});
+
+const publicSans = Public_Sans({
+    subsets: ["latin", "latin-ext"],
+    variable: "--font-sans",
+    display: "swap",
+});
 
 export default function RootLayout({
     children,

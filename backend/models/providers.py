@@ -67,6 +67,13 @@ PROVIDER_SPECS: dict[ProviderCategory, dict[str, ProviderSpec]] = {
             module="models.stt.whisper",
             description="Local Whisper transcription service with no external API key.",
         ),
+        "whisper_colab": ProviderSpec(
+            name="whisper_colab",
+            category="stt",
+            module="models.stt.whisper_colab",
+            env=("WHISPER_COLAB_URL",),
+            description="Remote Whisper transcription service running on Colab GPU.",
+        ),
     },
     "tts": {
         "elevenlabs": ProviderSpec(
@@ -96,6 +103,12 @@ PROVIDER_SPECS: dict[ProviderCategory, dict[str, ProviderSpec]] = {
             module="models.tts.openai",
             env=("OPENAI_API_KEY",),
             description="OpenAI text-to-speech service.",
+        ),
+        "edge_tts": ProviderSpec(
+            name="edge_tts",
+            category="tts",
+            module="models.tts.edge_tts",
+            description="Microsoft Edge TTS with Macedonian neural voices.",
         ),
     },
 }

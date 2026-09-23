@@ -15,13 +15,13 @@ from dotenv import load_dotenv
 from gem_live_route import build_gem_live_route
 from grok_route import build_grok_route
 from loguru import logger
-
-from models.db import get_elder, get_chat_history, create_system_prompt, create_first_message
-
+from pipecat.frames.frames import (
+    AggregatedTextFrame,
+    BotStartedSpeakingFrame,
+)
 import asyncio
 import uuid
-from models.db import get_elder, get_recent_summaries, create_system_prompt, create_first_message, summarize_session
-
+from models.db import get_elder, create_system_prompt, create_first_message, summarize_session
 logger.info("Loading Silero VAD model...")
 
 logger.info("Silero VAD model loaded")
@@ -43,6 +43,9 @@ from pipecat.frames.frames import (
     VADUserStoppedSpeakingFrame,
     TranscriptionFrame,
     TextFrame,
+    TTSTextFrame,
+    TTSSpeakFrame,
+    TTSStoppedFrame
 )
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
@@ -58,6 +61,24 @@ CURRENT_VOICE_ROUTE = os.getenv("CURRENT_VOICE_ROUTE", "classic").strip().lower(
 AUDIO_IN_SAMPLE_RATE = int(os.getenv("PIPELINE_AUDIO_IN_SAMPLE_RATE", "16000"))
 AUDIO_OUT_SAMPLE_RATE = int(os.getenv("PIPELINE_AUDIO_OUT_SAMPLE_RATE", "24000"))
 
+active_sessions: dict[str, PipelineTask] = {}
+
+device_observers: dict[str, set] = {}
+async def broadcast_device_message(elder_id: str | None, message: dict):
+    if not elder_id:
+        return
+
+    observers = device_observers.get(elder_id, set())
+
+    disconnected = set()
+
+    for websocket in observers:
+        try:
+            await websocket.send_json(message)
+        except Exception:
+            disconnected.add(websocket)
+
+    observers.difference_update(disconnected)
 
 class RealtimeInputControlProcessor(FrameProcessor):
     """Bridge incoming websocket control messages into Pipecat frames."""
@@ -66,14 +87,23 @@ class RealtimeInputControlProcessor(FrameProcessor):
         super().__init__()
         self._voice_route = voice_route
         self.user_stopped_at: float | None = None
+        self.on_start_conversation = None
+        self._conversation_started = False
 
     async def process_frame(self, frame: Frame, direction: FrameDirection):
+
         await super().process_frame(frame, direction)
 
         if isinstance(frame, InputTransportMessageFrame):
             message = frame.message if isinstance(frame.message, dict) else {}
             msg_type = message.get("type")
             msg = message.get("msg")
+
+            if msg_type == "instruction" and msg == "start_conversation" and not self._conversation_started:
+                self._conversation_started = True
+                if self.on_start_conversation:
+                    await self.on_start_conversation()
+                return
 
             if msg_type == "instruction" and msg == "end_of_speech":
                 self.user_stopped_at = time.perf_counter()
@@ -139,7 +169,7 @@ class RealtimeOutputControlProcessor(FrameProcessor):
                 )
             elif isinstance(frame, (TTSStoppedFrame, BotStoppedSpeakingFrame)):
                 self._response_started = False
-                logger.debug("Sending RESPONSE.COMPLETE after TTS stop")
+                logger.info("Sending RESPONSE.COMPLETE after TTS stop")
                 await self.push_frame(STTMuteFrame(mute=False), direction)
                 await self.push_frame(frame, direction)
                 await self.push_frame(
@@ -157,59 +187,68 @@ class RealtimeOutputControlProcessor(FrameProcessor):
 
         await self.push_frame(frame, direction)
 
-class LatencyLoggerProcessor(FrameProcessor):
-    """Measure end-to-end voice response latency."""
+# class LiveTranscriptProcessor(FrameProcessor):
+#     """Send user and assistant text to the browser for live transcript updates."""
 
-    def __init__(self, input_processor: RealtimeInputControlProcessor):
-        super().__init__()
-        self.input_processor = input_processor
-        self.first_audio_at: float | None = None
+#     def __init__(self, elder_id: str | None = None):
+#         super().__init__()
+#         self.elder_id = elder_id
+#         self._assistant_text = ""
 
-    async def process_frame(self, frame: Frame, direction: FrameDirection):
-        await super().process_frame(frame, direction)
+#     async def process_frame(self, frame: Frame, direction: FrameDirection):
+#         await super().process_frame(frame, direction)
 
-        now = time.perf_counter()
-        stopped_at = self.input_processor.user_stopped_at
+#         if direction is FrameDirection.DOWNSTREAM:
 
-        # STT transcription received
-        if isinstance(frame, TranscriptionFrame):
-            if stopped_at is not None:
-                logger.info(
-                    "[LATENCY] 📝 STT RESULT: {:.3f}s after user stopped | text={!r}",
-                    now - stopped_at,
-                    frame.text,
-                )
+#             # User's speech after STT
+#             # if isinstance(frame, TranscriptionFrame) and frame.text.strip():
+#             #     message = {
+#             #         "type": "server",
+#             #         "msg": "TRANSCRIPT",
+#             #         "role": "user",
+#             #         "text": frame.text,
+#             #     }
 
-        # LLM produced text
-        elif isinstance(frame, TextFrame):
-            if stopped_at is not None:
-                logger.info(
-                    "[LATENCY] 🧠 LLM TEXT: {:.3f}s after user stopped | text={!r}",
-                    now - stopped_at,
-                    frame.text,
-                )
+#             #     await broadcast_device_message(self.elder_id, message)
 
-        # First TTS audio packet
-        elif isinstance(frame, OutputAudioRawFrame):
-            if stopped_at is not None and self.first_audio_at is None:
-                self.first_audio_at = now
+#             #     await self.push_frame(
+#             #         OutputTransportMessageFrame(message=message),
+#             #         direction,
+#             #     )
 
-                logger.info(
-                    "[LATENCY] 🔊 FIRST AUDIO: {:.3f}s after user stopped",
-                    now - stopped_at,
-                )
+#             # Collect the assistant's actual TTS text
+#             if isinstance(frame, TTSTextFrame) and frame.text.strip():
+#                 self._assistant_text = frame.text.strip()
 
-        # TTS completely finished
-        elif isinstance(frame, TTSStoppedFrame):
-            if stopped_at is not None:
-                logger.info(
-                    "[LATENCY] ✅ TOTAL RESPONSE: {:.3f}s",
-                    now - stopped_at,
-                )
+#             # The moment the assistant's audio starts,
+#             # send the already-known text to the browser.
+#             elif isinstance(frame, OutputAudioRawFrame):
+#                 if self._assistant_text:
+#                     message = {
+#                         "type": "server",
+#                         "msg": "TRANSCRIPT",
+#                         "role": "assistant",
+#                         "text": self._assistant_text,
+#                     }
 
-                self.first_audio_at = None
+#                     logger.info(
+#                         "📤 ASSISTANT TRANSCRIPT SENT TO BROWSER: {}",
+#                         message,
+#                     )
 
-        await self.push_frame(frame, direction)
+#                     await broadcast_device_message(
+#                         self.elder_id,
+#                         message,
+#                     )
+
+#                     await self.push_frame(
+#                         OutputTransportMessageFrame(message=message),
+#                         direction,
+#                     )
+
+#                     self._assistant_text = ""
+
+#         await self.push_frame(frame, direction)
 
 def create_esp32_auth_message() -> dict:
     return {
@@ -238,8 +277,8 @@ async def run_bot_session(
 
     elder = get_elder(elder_id) if elder_id else None
     if elder:
-        summaries = get_recent_summaries(elder_id)
-        system_prompt = create_system_prompt(elder, summaries)
+        # summaries = get_recent_summaries(elder_id)
+        system_prompt = create_system_prompt(elder)
         first_message = create_first_message(elder)
     else:
         system_prompt = None
@@ -260,12 +299,13 @@ async def run_bot_session(
         **({"system_instruction": system_prompt} if system_prompt else {}),
     )
         
-    latency_logger = LatencyLoggerProcessor(input_processor)
+    # latency_logger = LatencyLoggerProcessor(input_processor)
 
     processors = [transport.input(), *route_processors]
 
     if transport_kind in {"esp32", "browser"}:
-        processors.append(latency_logger)
+        # processors.append(latency_logger)
+        # processors.append(LiveTranscriptProcessor(elder_id))
         processors.append(RealtimeOutputControlProcessor())
 
     processors.append(transport.output())
@@ -283,30 +323,23 @@ async def run_bot_session(
         ),
     )
 
+    async def start_conversation():
+        context.add_message({
+            "role": "user",
+            "content": first_message,
+        })
+
+        await task.queue_frames([
+            LLMContextFrame(context=context)
+        ])
+
+    input_processor.on_start_conversation = start_conversation
+
     @transport.event_handler("on_client_connected")
     async def on_client_connected(transport, client):
         logger.info(f"{transport_kind} client connected")
-
-        if voice_route in {"gem_live", "grok"}:
-            context.add_message(
-                {
-                    "role": "user",
-                    "content": "Say hello and briefly introduce yourself.",
-                }
-            )
-            await task.queue_frames(
-                [
-                    LLMContextFrame(context=context)
-                ]
-            )
-        else:
-            context.add_message(
-                {
-                    "role": "developer",
-                    "content": first_message,
-                }
-            )
-            await task.queue_frames([LLMRunFrame()])
+        if elder_id:
+            active_sessions[elder_id] = task
 
     @transport.event_handler("on_client_disconnected")
     async def on_client_disconnected(transport, client):
@@ -318,5 +351,21 @@ async def run_bot_session(
     runner = PipelineRunner(handle_sigint=handle_sigint)
     await runner.run(task)
 
-    runner = PipelineRunner(handle_sigint=handle_sigint)
-    await runner.run(task)
+# Module level, alongside active_sessions
+
+async def speak_to_elder(elder_id: str, text: str) -> bool:
+    """Push a direct spoken reminder + an in-app notification into an elder's live session."""
+    task = active_sessions.get(elder_id)
+    if not task:
+        logger.warning("Cannot deliver reminder — elder {} not connected", elder_id)
+        return False
+
+    _pending_reminder_texts.setdefault(elder_id, set()).add(text)
+
+    await task.queue_frames([
+        OutputTransportMessageFrame(
+            message={"type": "server", "msg": "REMINDER", "text": text}
+        ),
+        TTSSpeakFrame(text=text),
+    ])
+    return True

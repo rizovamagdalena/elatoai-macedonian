@@ -30,7 +30,7 @@ export const signInAction = async (formData: FormData) => {
         return encodedRedirect("error", "/login", error.message);
     }
 
-    return redirect("/home");
+    return redirect("/caregiver");
 };
 
 export const forgotPasswordAction = async (formData: FormData) => {
@@ -112,7 +112,7 @@ export const resetPasswordAction = async (formData: FormData) => {
 export const signOutAction = async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
-    return redirect("/login");
+    return redirect("/");
 };
 
 export const checkDoctorAction = async (authCode: string) => {

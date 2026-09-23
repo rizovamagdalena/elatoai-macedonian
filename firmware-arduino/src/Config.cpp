@@ -39,19 +39,27 @@ volatile bool sleepRequested = false;
  *   - Uses pre-configured SSL certificates (set in Config.cpp)
  */
 
+// #ifdef DEV_MODE
+// const char *ws_server = "192.168.1.33";
+// const char *ws_path = "/";
+
+// #if defined(VOICE_SERVER_DENO)
+// const uint16_t ws_port = 8000;
+// #elif defined(VOICE_SERVER_CLOUDFLARE)
+// const uint16_t ws_port = 8787;
+// #endif
+
+// // Backend server details 
+// const char *backend_server = "192.168.1.33";
+// const uint16_t backend_port = 3000;
+
 #ifdef DEV_MODE
-const char *ws_server = "192.168.1.33";
-const char *ws_path = "/";
+const char *ws_server = "172.20.10.12";
+const char *ws_path = "/ws/esp32";
+const uint16_t ws_port = 7860;
 
-#if defined(VOICE_SERVER_DENO)
-const uint16_t ws_port = 8000;
-#elif defined(VOICE_SERVER_CLOUDFLARE)
-const uint16_t ws_port = 8787;
-#endif
-
-// Backend server details 
-const char *backend_server = "192.168.1.33";
-const uint16_t backend_port = 3000;
+const char *backend_server = "172.20.10.12";
+const uint16_t backend_port = 7860;
 
 #elif defined(PROD_MODE)
 // PROD
@@ -95,17 +103,17 @@ const uint32_t MIC_SAMPLE_RATE = 16000;
 const i2s_port_t I2S_PORT_IN = I2S_NUM_1;
 const i2s_port_t I2S_PORT_OUT = I2S_NUM_0;
 
-const int BLUE_LED_PIN = 13;
+const int BLUE_LED_PIN = -1; // Not used, but defined for completeness
 const int RED_LED_PIN = 9;
 const int GREEN_LED_PIN = 8;
 
-const int I2S_SD = 14;
-const int I2S_WS = 4;
-const int I2S_SCK = 1;
+const int I2S_SD = 32;
+const int I2S_WS = 13;
+const int I2S_SCK = 14;
 
-const int I2S_WS_OUT = 5;
-const int I2S_BCK_OUT = 6;
-const int I2S_DATA_OUT = 7;
+const int I2S_WS_OUT = 25;
+const int I2S_BCK_OUT = 26;
+const int I2S_DATA_OUT = 27;
 const int I2S_SD_OUT = 10;
 
 const gpio_num_t BUTTON_PIN = GPIO_NUM_2; // Only RTC IO are allowed - ESP32 Pin example

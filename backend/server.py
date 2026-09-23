@@ -4,18 +4,42 @@ from __future__ import annotations
 
 import json
 import os
-
+import asyncio
 import uvicorn
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from loguru import logger
 from pipecat.transports.websocket.fastapi import FastAPIWebsocketParams
+from scheduler import scheduler
 
-from bot import create_esp32_auth_message, run_bot_session
+from bot import create_esp32_auth_message, run_bot_session,  device_observers,  active_sessions
 from esp32_transport import BrowserWebsocketTransport, Esp32WebsocketTransport, RawPCMFrameSerializer
 from models.providers import get_provider_catalog, validate_classic_provider_stack
 
+active_esp32_websocket: WebSocket | None = None
+active_esp32_elder_id: str | None = None
+
+esp32_elder_event = asyncio.Event()
+
+async def send_device_command(command: str):
+    if active_esp32_websocket is None:
+        logger.warning("No ESP32 connected")
+        return
+
+    try:
+        await active_esp32_websocket.send_text(
+            json.dumps({
+                "type": "server",
+                "msg": command,
+            })
+        )
+
+        logger.info("Sent ESP32 command: {}", command)
+
+    except Exception as e:
+        logger.warning("Failed to send ESP32 command: {}", e)
+        
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "7860"))
 BROWSER_INPUT_SAMPLE_RATE = int(os.getenv("BROWSER_INPUT_SAMPLE_RATE", "16000"))
@@ -266,6 +290,7 @@ def create_app() -> FastAPI:
             selected["llm"],
             selected["tts"],
         )
+        scheduler.start()
 
     @app.websocket("/ws/browser")
     async def browser_websocket(websocket: WebSocket):
@@ -284,16 +309,115 @@ def create_app() -> FastAPI:
 
     @app.websocket("/ws/esp32")
     async def esp32_websocket(websocket: WebSocket):
+        global active_esp32_websocket
+        global active_esp32_elder_id
+
         await websocket.accept()
-        logger.info(
-            "ESP32 websocket connected: mac={} rssi={} auth={}",
-            websocket.headers.get("x-device-mac", "unknown"),
-            websocket.headers.get("x-wifi-rssi", "unknown"),
-            "yes" if websocket.headers.get("authorization") else "no",
+
+        active_esp32_websocket = websocket
+
+        logger.info("ESP32 websocket connected")
+
+        await websocket.send_text(
+            json.dumps(create_esp32_auth_message())
         )
-        await websocket.send_text(json.dumps(create_esp32_auth_message()))
-        transport = create_esp32_transport(websocket)
-        await run_bot_session(transport, "esp32", False)
+
+        try:
+            # Wait until a logged-in elder opens /elder/device
+            await esp32_elder_event.wait()
+
+            # Only the currently active ESP32 connection may continue.
+            if active_esp32_websocket is not websocket:
+                logger.info("Ignoring stale ESP32 websocket")
+                return
+
+            elder_id = active_esp32_elder_id
+
+            if not elder_id:
+                logger.warning("ESP32 connected but no elder_id was assigned")
+                return
+
+            logger.info(
+                "Starting ESP32 session for elder_id={}",
+                elder_id,
+            )
+
+            transport = create_esp32_transport(websocket)
+
+            # Tell the physical device to start listening.
+            # The ESP32 WebSocket is now ready to be used by Pipecat.
+            await send_device_command("DEVICE.START")
+
+            await run_bot_session(
+                transport,
+                "esp32",
+                False,
+                elder_id=elder_id,
+            )
+
+        except Exception as e:
+            logger.info(
+                "ESP32 websocket disconnected: {}",
+                e,
+            )
+
+        finally:
+          if active_esp32_websocket is websocket:
+              active_esp32_websocket = None
+              active_esp32_elder_id = None
+              esp32_elder_event.clear()
+           
+    @app.websocket("/ws/device-observer")
+    async def device_observer_websocket(websocket: WebSocket):
+        await websocket.accept()
+
+        elder_id = websocket.query_params.get("elder_id")
+
+        if not elder_id:
+            await websocket.close(code=1008)
+            return
+
+        logger.info(
+            "Device observer connected, elder_id={}",
+            elder_id,
+        )
+
+        observers = device_observers.setdefault(elder_id, set())
+        observers.add(websocket)
+
+        global active_esp32_elder_id
+
+        active_esp32_elder_id = elder_id
+        esp32_elder_event.set()
+
+        try:
+            while True:
+                await websocket.receive_text()
+
+        except Exception:
+            logger.info(
+                "Device observer disconnected, elder_id={}",
+                elder_id,
+            )
+
+        finally:
+            logger.info(
+            "Stopping device session, elder_id={}",
+            elder_id,
+        )
+
+        task = active_sessions.get(elder_id)
+
+        if task:
+            await task.cancel()
+            active_sessions.pop(elder_id, None)
+
+        await send_device_command("DEVICE.STOP")
+
+        observers.discard(websocket)
+
+        if not observers:
+            device_observers.pop(elder_id, None)
 
     return app
 

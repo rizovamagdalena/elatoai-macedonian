@@ -1,8 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
-import { getElderById } from "@/db/elders";
 import { getConversationsForElder } from "@/db/conversations_display";
-import VoiceChat from "@/app/components/VoiceChat/VoiceChat";
+import VoiceChat from "@/components/VoiceChat/VoiceChat";
 
 export const revalidate = 0;
 export const dynamic = "force-dynamic";
@@ -12,11 +11,7 @@ export const dynamic = "force-dynamic";
 const BACKEND_URL =
     process.env.NEXT_PUBLIC_BACKEND_WS_URL || "ws://localhost:7860";
 
-export default async function ElderChatPage({
-    params,
-}: {
-    params: { elderId: string };
-}) {
+export default async function ElderChatPage() {
     const supabase = createClient();
 
     const {
@@ -27,7 +22,11 @@ export default async function ElderChatPage({
         redirect("/login");
     }
 
-    const elder = await getElderById(supabase, params.elderId);
+    const { data: elder } = await supabase
+        .from("elders")
+        .select("*")
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
 
     if (!elder) {
         notFound();
@@ -47,3 +46,4 @@ export default async function ElderChatPage({
         />
     );
 }
+

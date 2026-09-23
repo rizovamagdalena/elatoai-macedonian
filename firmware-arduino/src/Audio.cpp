@@ -276,14 +276,14 @@ void webSocketEvent(WStype_t type, const uint8_t *payload, size_t length)
             currentVolume = doc["volume_control"].as<int>();
             currentPitchFactor = doc["pitch_factor"].as<float>();
 
+            Serial.printf("Pitch factor received: %.3f\n", currentPitchFactor);
+
             bool is_ota = doc["is_ota"].as<bool>();
             bool is_reset = doc["is_reset"].as<bool>();
 
-            // Update volumes on both streams
             volume.setVolume(currentVolume / 100.0f);
             volumePitch.setVolume(currentVolume / 100.0f);
-            
-            // Only initialize pitch shift if needed
+
             if (currentPitchFactor != 1.0f) {
                 auto pcfg = pitchShift.defaultConfig();
                 pcfg.copyFrom(info);
@@ -300,39 +300,64 @@ void webSocketEvent(WStype_t type, const uint8_t *payload, size_t length)
 
             if (is_reset) {
                 Serial.println("Factory reset received");
-                // setFactoryResetStatusInNVS(true);
                 ESP.restart();
             }
+
+            deviceState = IDLE;
+            digitalWrite(I2S_SD_OUT, LOW);
+
+            Serial.println("Auth received - waiting for device start");
         }
 
-        // oai messages
+        // server messages
         if (strcmp((char*)type.c_str(), "server") == 0) {
             String msg = doc["msg"];
             Serial.println(msg);
 
-            if (strcmp((char*)msg.c_str(), "RESPONSE.COMPLETE") == 0 || strcmp((char*)msg.c_str(), "RESPONSE.ERROR") == 0) {
+            if (strcmp((char*)msg.c_str(), "DEVICE.START") == 0) {
+
+                deviceState = LISTENING;
+                digitalWrite(I2S_SD_OUT, LOW);
+
+                Serial.println("Device START received - starting listening");
+
+            } else if (strcmp((char*)msg.c_str(), "DEVICE.STOP") == 0) {
+
+                deviceState = IDLE;
+                digitalWrite(I2S_SD_OUT, LOW);
+
+                Serial.println("Device STOP received - stopping listening");
+
+            } else if (strcmp((char*)msg.c_str(), "RESPONSE.COMPLETE") == 0 ||
+                    strcmp((char*)msg.c_str(), "RESPONSE.ERROR") == 0) {
+
                 Serial.println("Received RESPONSE.COMPLETE or RESPONSE.ERROR, starting listening again");
 
-                // Check if volume_control is included in the message
                 if (doc.containsKey("volume_control")) {
                     int newVolume = doc["volume_control"].as<int>();
                     volume.setVolume(newVolume / 100.0f);
                 }
 
                 scheduleListeningRestart = true;
-                scheduledTime = millis() + 1000; // 1 second delay
+                scheduledTime = millis() + 1000;
+
             } else if (strcmp((char*)msg.c_str(), "AUDIO.COMMITTED") == 0) {
-                deviceState = PROCESSING; 
+
+                deviceState = PROCESSING;
+
             } else if (strcmp((char*)msg.c_str(), "RESPONSE.CREATED") == 0) {
+
                 Serial.println("Received RESPONSE.CREATED, transitioning to speaking");
                 transitionToSpeaking();
+
             } else if (strcmp((char*)msg.c_str(), "SESSION.END") == 0) {
+
                 Serial.println("Received SESSION.END, going to sleep");
                 sleepRequested = true;
             }
         }
     }
-        break;
+    break;
     case WStype_BIN:
     {
         if (scheduleListeningRestart || deviceState != SPEAKING) {

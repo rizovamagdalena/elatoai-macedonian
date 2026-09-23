@@ -3,12 +3,10 @@
 import { useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { IMedication, addMedication, deleteMedication } from "@/db/medications";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Pill } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 
 export default function MedicationsSection({
     elderId,
@@ -61,98 +59,132 @@ export default function MedicationsSection({
     };
 
     return (
-        <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="flex items-center gap-2 text-base">
-                    <Pill size={18} />
-                    Medications
-                </CardTitle>
-                <Button size="sm" variant="outline" onClick={() => setShowForm(!showForm)}>
-                    <Plus size={14} className="mr-1" />
-                    Add
-                </Button>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3">
-                {medications.length === 0 && !showForm && (
-                    <p className="text-sm text-gray-500">No medications on file yet.</p>
-                )}
+        <div className="font-[family-name:var(--font-sans)]">
+            {medications.length === 0 && !showForm && (
+                <p className="text-sm text-[#22281F]/50">
+                    Nothing on file yet.
+                </p>
+            )}
 
+            <div className="divide-y divide-[#22281F]/10">
                 {medications.map((med) => (
                     <div
                         key={med.medication_id}
-                        className="flex items-start justify-between border rounded-md p-3"
+                        className="flex items-start justify-between gap-4 py-4"
                     >
                         <div>
-                            <p className="text-sm font-medium">
+                            <p className="text-sm font-medium text-[#22281F]">
                                 {med.name}
                                 {med.dosage && (
-                                    <span className="text-gray-500 font-normal"> — {med.dosage}</span>
+                                    <span className="font-normal text-[#22281F]/50">
+                                        {" "}
+                                        — {med.dosage}
+                                    </span>
                                 )}
                             </p>
-                            <div className="flex gap-1 mt-1 flex-wrap">
+
+                            <div className="mt-2 flex flex-wrap gap-1.5">
                                 {med.times_of_day.map((t) => (
-                                    <Badge key={t} variant="secondary">
+                                    <span
+                                        key={t}
+                                        className="rounded-full bg-[#DCE3D6] px-2.5 py-0.5 text-xs font-medium text-[#4B6355]"
+                                    >
                                         {t}
-                                    </Badge>
+                                    </span>
                                 ))}
                             </div>
+
                             {med.notes && (
-                                <p className="text-xs text-gray-500 mt-1">{med.notes}</p>
+                                <p className="mt-1.5 text-xs text-[#22281F]/50">
+                                    {med.notes}
+                                </p>
                             )}
                         </div>
+
                         <Button
                             size="icon"
                             variant="ghost"
+                            className="shrink-0 text-[#22281F]/30 hover:bg-[#A8552F]/10 hover:text-[#A8552F]"
                             onClick={() => handleDelete(med.medication_id)}
                         >
                             <Trash2 size={14} />
                         </Button>
                     </div>
                 ))}
+            </div>
 
-                {showForm && (
-                    <div className="flex flex-col gap-3 border rounded-md p-3">
-                        <div className="flex flex-col gap-1">
-                            <Label htmlFor="med-name">Name</Label>
-                            <Input
-                                id="med-name"
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
-                                placeholder="e.g. Aspirin"
-                            />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <Label htmlFor="med-dosage">Dosage</Label>
-                            <Input
-                                id="med-dosage"
-                                value={dosage}
-                                onChange={(e) => setDosage(e.target.value)}
-                                placeholder="e.g. 100mg"
-                            />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <Label htmlFor="med-times">Times (comma separated)</Label>
-                            <Input
-                                id="med-times"
-                                value={times}
-                                onChange={(e) => setTimes(e.target.value)}
-                                placeholder="e.g. 08:00, 20:00"
-                            />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <Label htmlFor="med-notes">Notes (optional)</Label>
-                            <Input
-                                id="med-notes"
-                                value={notes}
-                                onChange={(e) => setNotes(e.target.value)}
-                            />
-                        </div>
-                        <Button onClick={handleAdd} disabled={submitting}>
-                            {submitting ? "Saving..." : "Save medication"}
-                        </Button>
+            {showForm && (
+                <div className="mt-4 flex flex-col gap-4 rounded-2xl bg-[#EFEAE0]/60 p-5">
+                    <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="med-name" className="text-[#22281F]/70">
+                            Name
+                        </Label>
+                        <Input
+                            id="med-name"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            placeholder="e.g. Aspirin"
+                            className="rounded-lg border-[#22281F]/15 bg-white focus-visible:ring-[#4B6355]"
+                        />
                     </div>
-                )}
-            </CardContent>
-        </Card>
+
+                    <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="med-dosage" className="text-[#22281F]/70">
+                            Dosage
+                        </Label>
+                        <Input
+                            id="med-dosage"
+                            value={dosage}
+                            onChange={(e) => setDosage(e.target.value)}
+                            placeholder="e.g. 100mg"
+                            className="rounded-lg border-[#22281F]/15 bg-white focus-visible:ring-[#4B6355]"
+                        />
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="med-times" className="text-[#22281F]/70">
+                            Times (comma separated)
+                        </Label>
+                        <Input
+                            id="med-times"
+                            value={times}
+                            onChange={(e) => setTimes(e.target.value)}
+                            placeholder="e.g. 08:00, 20:00"
+                            className="rounded-lg border-[#22281F]/15 bg-white focus-visible:ring-[#4B6355]"
+                        />
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="med-notes" className="text-[#22281F]/70">
+                            Notes (optional)
+                        </Label>
+                        <Input
+                            id="med-notes"
+                            value={notes}
+                            onChange={(e) => setNotes(e.target.value)}
+                            className="rounded-lg border-[#22281F]/15 bg-white focus-visible:ring-[#4B6355]"
+                        />
+                    </div>
+
+                    <Button
+                        onClick={handleAdd}
+                        disabled={submitting}
+                        className="rounded-full bg-[#4B6355] text-[#F7F4EC] hover:bg-[#3B4F44]"
+                    >
+                        {submitting ? "Saving..." : "Save medication"}
+                    </Button>
+                </div>
+            )}
+
+            <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setShowForm(!showForm)}
+                className="mt-4 gap-1.5 rounded-full text-[#4B6355] hover:bg-[#DCE3D6]/60 hover:text-[#3B4F44]"
+            >
+                <Plus size={14} />
+                {showForm ? "Cancel" : "Add medication"}
+            </Button>
+        </div>
     );
 }
