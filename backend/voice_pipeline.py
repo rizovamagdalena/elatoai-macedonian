@@ -24,9 +24,21 @@ from pipecat.frames.frames import (
     LLMTextFrame,
     OutputTransportMessageFrame,
     TranscriptionFrame,
+    TTSStoppedFrame,
+    BotStoppedSpeakingFrame,
+    
 )
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
+class LoggingVADAnalyzer(SileroVADAnalyzer):
+    async def analyze_audio(self, buffer):
+        logger.info("🔥 VAD analyze_audio CALLED - {} bytes", len(buffer))
 
+        result = await super().analyze_audio(buffer)
+
+        logger.info("🔥 VAD RESULT: {}", result)
+
+        return result
+    
 class LiveUserTranscriptProcessor(FrameProcessor):
     """Send user transcripts to the browser."""
 
@@ -69,7 +81,9 @@ class LiveAssistantTranscriptProcessor(FrameProcessor):
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         await super().process_frame(frame, direction)
 
-        if direction is FrameDirection.DOWNSTREAM:
+        if direction is FrameDirection.DOWNSTREAM or isinstance(
+            frame, (TTSStoppedFrame, BotStoppedSpeakingFrame)
+        ):
 
             if isinstance(frame, LLMFullResponseStartFrame):
                 self._assistant_text = ""
@@ -138,14 +152,14 @@ def build_voice_pipeline(
         tts_provider,
     )
 
-    # stt = create_stt_service(stt_provider, model="small", language="mk")
-    stt = RemoteWhisperSTTService(
-        url=os.getenv("REMOTE_WHISPER_URL"),
-        sample_rate=16000,
-    )
+    stt = create_stt_service(stt_provider, model="small", language="mk")
+    # stt = RemoteWhisperSTTService(
+    #     url=os.getenv("REMOTE_WHISPER_URL"),
+    #     sample_rate=16000,
+    # )
     llm = create_llm_service(
         llm_provider,
-        model="gpt-4o",
+        model="gpt-4o-mini",
         system_instruction=system_instruction,
     )
     tts = create_tts_service(tts_provider)
@@ -153,7 +167,9 @@ def build_voice_pipeline(
     user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
         context,
         user_params=LLMUserAggregatorParams(
-            vad_analyzer=SileroVADAnalyzer(params=VADParams(stop_secs=1))
+            vad_analyzer=LoggingVADAnalyzer(
+    params=VADParams(stop_secs=1)
+)
         ),
     )
 
@@ -162,51 +178,11 @@ def build_voice_pipeline(
         aggregator,
         message: UserTurnMessageAddedMessage,
     ):
-        if not elder_id:
-            return
-
-        similar_summaries = get_similar_summaries(
-            elder_id,
-            message.content,
-            k=5,
-        )
-
         logger.info(
-            "Retrieved {} relevant memories for user turn",
-            len(similar_summaries),
+            "🔥 USER TURN MESSAGE ADDED: {!r}",
+            message.content,
         )
-
-        memory_text = "\n".join(
-            f"- {item['summary_text']}"
-            for item in similar_summaries
-        )
-
-        messages = context.get_messages()
-
-        messages = [
-            msg
-            for msg in messages
-            if not (
-                msg.get("role") == "system"
-                and isinstance(msg.get("content"), str)
-                and msg["content"].startswith(
-                    "Relevant memories from previous conversations:"
-                )
-            )
-        ]
-
-        if similar_summaries:
-            messages.append(
-                {
-                    "role": "system",
-                    "content": (
-                        "Relevant memories from previous conversations:\n"
-                        f"{memory_text}"
-                    ),
-                }
-            )
-
-        context.set_messages(messages)
+    
     live_user_transcript = LiveUserTranscriptProcessor()
     live_assistant_transcript = LiveAssistantTranscriptProcessor()
     processors = [

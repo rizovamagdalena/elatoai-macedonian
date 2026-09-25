@@ -152,39 +152,77 @@ class RealtimeOutputControlProcessor(FrameProcessor):
 
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         await super().process_frame(frame, direction)
-        logger.debug("RealtimeOutputControlProcessor received frame: {}", type(frame).__name__)
+        if isinstance(
+            frame,
+            (
+                UserStoppedSpeakingFrame,
+                VADUserStoppedSpeakingFrame,
+                BotStoppedSpeakingFrame,
+            ),
+        ):
+            logger.info(
+                "IMPORTANT FRAME: {} direction={}",
+                type(frame).__name__,
+                direction,
+            )
 
         if direction is FrameDirection.DOWNSTREAM:
             if isinstance(frame, (UserStoppedSpeakingFrame, VADUserStoppedSpeakingFrame)):
                 await self.push_frame(
-                    OutputTransportMessageFrame(message={"type": "server", "msg": "AUDIO.COMMITTED"}),
+                    OutputTransportMessageFrame(
+                        message={"type": "server", "msg": "AUDIO.COMMITTED"}
+                    ),
                     direction,
                 )
+
             elif isinstance(frame, OutputAudioRawFrame) and not self._response_started:
                 self._response_started = True
                 logger.debug("Sending RESPONSE.CREATED before first audio packet")
+
                 await self.push_frame(STTMuteFrame(mute=True), direction)
+
                 await self.push_frame(
-                    OutputTransportMessageFrame(message={"type": "server", "msg": "RESPONSE.CREATED"}),
+                    OutputTransportMessageFrame(
+                        message={"type": "server", "msg": "RESPONSE.CREATED"}
+                    ),
                     direction,
                 )
-            elif isinstance(frame, (TTSStoppedFrame, BotStoppedSpeakingFrame)):
-                self._response_started = False
-                logger.info("Sending RESPONSE.COMPLETE after TTS stop")
-                await self.push_frame(STTMuteFrame(mute=False), direction)
-                await self.push_frame(frame, direction)
-                await self.push_frame(
-                    OutputTransportMessageFrame(message={"type": "server", "msg": "RESPONSE.COMPLETE"}),
-                    direction,
-                )
-                return
+
             elif isinstance(frame, ErrorFrame):
                 self._response_started = False
+
                 await self.push_frame(STTMuteFrame(mute=False), direction)
+
                 await self.push_frame(
-                    OutputTransportMessageFrame(message={"type": "server", "msg": "RESPONSE.ERROR"}),
+                    OutputTransportMessageFrame(
+                        message={"type": "server", "msg": "RESPONSE.ERROR"}
+                    ),
                     direction,
                 )
+
+        elif isinstance(frame, BotStoppedSpeakingFrame):
+            self._response_started = False
+
+            logger.info("Sending RESPONSE.COMPLETE after bot stopped speaking")
+
+            await self.push_frame(
+                STTMuteFrame(mute=False),
+                FrameDirection.DOWNSTREAM,
+            )
+
+            await self.push_frame(
+                OutputTransportMessageFrame(
+                    message={"type": "server", "msg": "RESPONSE.COMPLETE"}
+                ),
+                FrameDirection.DOWNSTREAM,
+            )
+
+            return
+        # logger.info(
+        #     "➡️ Passing frame downstream: {} direction={}",
+        #     type(frame).__name__,
+        #     direction,
+        # )
 
         await self.push_frame(frame, direction)
 

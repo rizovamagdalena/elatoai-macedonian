@@ -1,7 +1,7 @@
 #include "OTA.h"
 #include "Audio.h"
 #include "PitchShift.h"
-
+#include <LittleFS.h>
 // WEBSOCKET
 SemaphoreHandle_t wsMutex;
 WebSocketsClient webSocket;
@@ -22,25 +22,42 @@ float currentPitchFactor = 1.0f;
 const int CHANNELS = 1;         // Mono
 const int BITS_PER_SAMPLE = 16; // 16-bit audio
 
+
+File decodedAudioFile;
+bool recordingDecodedAudio = false;
+
+
 // AUDIO OUTPUT
 class BufferPrint : public Print {
 public:
   explicit BufferPrint(BufferRTOS<uint8_t>& buf) : _buffer(buf) {}
 
-  // networkTask -> webSocket.loop() -> webSocketEvent(WStype_BIN, ...) -> opusDecoder.write() -> bufferPrint.write()
+  // Opus decoder -> bufferPrint.write() -> decoded PCM
   virtual size_t write(uint8_t data) override {
     if (webSocket.isConnected() && deviceState == SPEAKING) {
+
+        if (recordingDecodedAudio && decodedAudioFile) {
+            decodedAudioFile.write(&data, 1);
+        }
+
         return _buffer.writeArray(&data, 1);
     }
-    return 1; //let opusDecoder write, otherwise thread will stuck
+
+    return 1;
   }
 
-  // networkTask -> webSocket.loop() -> webSocketEvent(WStype_BIN, ...) -> opusDecoder.write() -> bufferPrint.write()
+  // Opus decoder -> bufferPrint.write() -> decoded PCM
   virtual size_t write(const uint8_t *buffer, size_t size) override {
     if (webSocket.isConnected() && deviceState == SPEAKING) {
+
+        if (recordingDecodedAudio && decodedAudioFile) {
+            decodedAudioFile.write(buffer, size);
+        }
+
         return _buffer.writeArray(buffer, size);
     }
-    return size; //let opusDecoder write, otherwise thread will stuck
+
+    return size;
   }
 
 private:
@@ -107,7 +124,13 @@ void transitionToListening() {
 // audioStreamTask -> copier.copy() (conditional on webSocket.isConnected())
 void audioStreamTask(void *parameter) {
     Serial.println("Starting I2S stream pipeline...");
-    
+
+    if (!LittleFS.begin(true)) {
+        Serial.println("❌ LittleFS mount failed");
+    } else {
+        Serial.println("✅ LittleFS mounted");
+    }
+
     pinMode(I2S_SD_OUT, OUTPUT);
 
     OpusSettings cfg;
@@ -119,6 +142,12 @@ void audioStreamTask(void *parameter) {
     xSemaphoreTake(wsMutex, portMAX_DELAY);
     opusDecoder.setOutput(bufferPrint);
     opusDecoder.begin(cfg);
+    Serial.printf(
+        "Opus config: rate=%d, channels=%d, bits=%d\n",
+        cfg.sample_rate,
+        cfg.channels,
+        cfg.bits_per_sample
+    );
     xSemaphoreGive(wsMutex);
 
     audioBuffer.setReadMaxWait(0);
@@ -126,16 +155,19 @@ void audioStreamTask(void *parameter) {
     queue.begin();
 
     auto config = i2s.defaultConfig(TX_MODE);
-    config.bits_per_sample = BITS_PER_SAMPLE;
-    config.sample_rate = SAMPLE_RATE;
-    config.channels = CHANNELS;
-    config.pin_bck = I2S_BCK_OUT;
-    config.pin_ws = I2S_WS_OUT;
-    config.pin_data = I2S_DATA_OUT;
-    config.port_no = I2S_PORT_OUT;
 
-    config.copyFrom(info);  
-    i2s.begin(config);  
+    config.copyFrom(info);
+
+    config.sample_rate = 24000;
+    config.bits_per_sample = 16;
+    config.channels = 1;
+
+    config.pin_bck = 26;
+    config.pin_ws = 25;
+    config.pin_data = 27;
+    config.port_no = I2S_NUM_0;
+
+    i2s.begin(config);
 
     // Initialize both volume streams once
     auto vcfg = volume.defaultConfig();
@@ -188,7 +220,7 @@ public:
     }
     
     // micTask -> micToWsCopier.copyBytes() -> wsStream.write()
-    virtual size_t write(const uint8_t *buffer, size_t size) override {
+     virtual size_t write(const uint8_t *buffer, size_t size) override {
         if (size == 0 || !webSocket.isConnected() || deviceState != LISTENING) {
             return size;
         }
@@ -320,6 +352,9 @@ void webSocketEvent(WStype_t type, const uint8_t *payload, size_t length)
                 digitalWrite(I2S_SD_OUT, LOW);
 
                 Serial.println("Device START received - starting listening");
+                 webSocket.sendTXT(
+                    "{\"type\":\"instruction\",\"msg\":\"start_conversation\"}"
+                );
 
             } else if (strcmp((char*)msg.c_str(), "DEVICE.STOP") == 0) {
 
@@ -338,6 +373,29 @@ void webSocketEvent(WStype_t type, const uint8_t *payload, size_t length)
                     volume.setVolume(newVolume / 100.0f);
                 }
 
+                if (recordingDecodedAudio) {
+                    recordingDecodedAudio = false;
+
+                    if (decodedAudioFile) {
+                        decodedAudioFile.flush();
+                        decodedAudioFile.close();
+                    }
+
+                    File checkFile = LittleFS.open("/decoded_audio.raw", FILE_READ);
+
+                    if (checkFile) {
+                        size_t fileSize = checkFile.size();
+                        checkFile.close();
+
+                        Serial.printf(
+                            "🎙️ Decoded PCM recording saved: %u bytes\n",
+                            fileSize
+                        );
+                    } else {
+                        Serial.println("❌ Could not reopen decoded_audio.raw");
+                    }
+}
+
                 scheduleListeningRestart = true;
                 scheduledTime = millis() + 1000;
 
@@ -348,6 +406,15 @@ void webSocketEvent(WStype_t type, const uint8_t *payload, size_t length)
             } else if (strcmp((char*)msg.c_str(), "RESPONSE.CREATED") == 0) {
 
                 Serial.println("Received RESPONSE.CREATED, transitioning to speaking");
+                decodedAudioFile = LittleFS.open("/decoded_audio.raw", FILE_WRITE);
+
+                if (decodedAudioFile) {
+                    recordingDecodedAudio = true;
+                    Serial.println("🎙️ Recording decoded Opus PCM...");
+                } else {
+                    Serial.println("❌ Could not open decoded_audio.raw");
+                }
+
                 transitionToSpeaking();
 
             } else if (strcmp((char*)msg.c_str(), "SESSION.END") == 0) {
@@ -411,12 +478,66 @@ void websocketSetup(const String& server_domain, int port, const String& path)
     xSemaphoreGive(wsMutex);
 }
 
+void dumpDecodedAudio() {
+    File file = LittleFS.open("/decoded_audio.raw", FILE_READ);
+
+    if (!file) {
+        Serial.println("DUMP_ERROR");
+        return;
+    }
+
+    Serial.println("DUMP_BEGIN");
+
+    uint8_t buffer[256];
+
+    while (file.available()) {
+        size_t bytesRead = file.read(buffer, sizeof(buffer));
+
+        for (size_t i = 0; i < bytesRead; i++) {
+            if (buffer[i] < 16) {
+                Serial.print('0');
+            }
+            Serial.print(buffer[i], HEX);
+        }
+
+        Serial.println();
+    }
+
+    file.close();
+
+    Serial.println("DUMP_END");
+}
+
 // networkTask -> webSocket.loop()
+// void networkTask(void *parameter) {
+//     while (1) {
+//         xSemaphoreTake(wsMutex, portMAX_DELAY);
+
+//         // Check to see if a transition to listening mode is scheduled.
+//         if (scheduleListeningRestart && millis() >= scheduledTime) {
+//             transitionToListening();
+//         }
+
+//         webSocket.loop();
+//         xSemaphoreGive(wsMutex);
+
+//         vTaskDelay(1);
+//     }
+// }
 void networkTask(void *parameter) {
     while (1) {
+
+        if (Serial.available()) {
+            String command = Serial.readStringUntil('\n');
+            command.trim();
+
+            if (command == "DUMP") {
+                dumpDecodedAudio();
+            }
+        }
+
         xSemaphoreTake(wsMutex, portMAX_DELAY);
 
-        // Check to see if a transition to listening mode is scheduled.
         if (scheduleListeningRestart && millis() >= scheduledTime) {
             transitionToListening();
         }

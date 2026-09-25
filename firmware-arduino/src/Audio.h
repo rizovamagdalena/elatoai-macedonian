@@ -4,6 +4,7 @@
 #include "AudioTools.h"
 #include "AudioTools/AudioCodecs/CodecOpus.h"
 #include "Config.h"
+#include <LittleFS.h>
 
 extern SemaphoreHandle_t wsMutex;
 extern WebSocketsClient webSocket;

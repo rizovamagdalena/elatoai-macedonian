@@ -102,6 +102,7 @@ const uint32_t MIC_SAMPLE_RATE = 16000;
 // ----------------- Pin Definitions -----------------
 const i2s_port_t I2S_PORT_IN = I2S_NUM_1;
 const i2s_port_t I2S_PORT_OUT = I2S_NUM_0;
+    
 
 const int BLUE_LED_PIN = -1; // Not used, but defined for completeness
 const int RED_LED_PIN = 9;

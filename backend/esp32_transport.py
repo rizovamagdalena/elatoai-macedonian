@@ -9,6 +9,8 @@ import av
 import numpy as np
 from fastapi import WebSocket
 from loguru import logger
+import wave
+from pathlib import Path
 
 from pipecat.frames.frames import (
     Frame,
@@ -148,6 +150,8 @@ class OpusWebsocketOutputTransport(FastAPIWebsocketOutputTransport):
             bit_rate=24000,
         )
 
+        self._debug_wav = None
+
     async def send_message(
         self, frame: OutputTransportMessageFrame | OutputTransportMessageUrgentFrame
     ):
@@ -158,20 +162,49 @@ class OpusWebsocketOutputTransport(FastAPIWebsocketOutputTransport):
         msg = message.get("msg")
 
         if msg == "RESPONSE.CREATED":
+            logger.info("Resetting Opus encoder")
             self._encoder.reset()
+
+            debug_path = Path(__file__).resolve().parent / "debug_audio.wav"
+
+            if self._debug_wav is not None:
+                self._debug_wav.close()
+
+            self._debug_wav = wave.open(str(debug_path), "wb")
+            self._debug_wav.setnchannels(1)
+            self._debug_wav.setsampwidth(2)      # 16-bit PCM
+            self._debug_wav.setframerate(24000)
+
+            logger.info("🎵 Debug WAV recording: {}", debug_path)
+
         elif msg == "RESPONSE.COMPLETE":
+            logger.info("Flushing Opus encoder")
+
             for packet in self._encoder.flush(pad_final_frame=True):
                 await self._client.send(packet)
+            logger.info("Finished Opus flush")
+            
+            if self._debug_wav is not None:
+                self._debug_wav.close()
+                self._debug_wav = None
+                logger.info("🎵 Debug WAV saved")
+
         elif msg == "RESPONSE.ERROR":
             self._encoder.reset()
 
         payload = await self._params.serializer.serialize(frame) if self._params.serializer else None
         if payload:
+            logger.info("Sending control message: {}", msg)
             await self._client.send(payload)
+            logger.info("Control message sent: {}", msg)
 
     async def write_audio_frame(self, frame: OutputAudioRawFrame) -> bool:
         if self._client.is_closing or not self._client.is_connected:
             return False
+
+        # TEMPORARY DEBUG: save raw TTS PCM before Opus encoding
+        if self._debug_wav is not None:
+            self._debug_wav.writeframes(frame.audio)
 
         for packet in self._encoder.encode(frame.audio):
             await self._client.send(packet)
