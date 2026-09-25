@@ -1,6 +1,7 @@
 """Default STT -> LLM -> TTS voice pipeline builder."""
 from __future__ import annotations
 import os
+import uuid
 from models.stt.remote_whisper import RemoteWhisperSTTService
 from character_prompt import LANGUAGE_LEARNING_PAL_PROMPT
 from loguru import logger
@@ -58,11 +59,12 @@ class LiveUserTranscriptProcessor(FrameProcessor):
 
 
 class LiveAssistantTranscriptProcessor(FrameProcessor):
-    """Send the complete LLM response to the browser before TTS finishes."""
+    """Send the assistant response to the browser while it is being generated."""
 
     def __init__(self):
         super().__init__()
         self._assistant_text = ""
+        self._message_id = None
 
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         await super().process_frame(frame, direction)
@@ -71,25 +73,41 @@ class LiveAssistantTranscriptProcessor(FrameProcessor):
 
             if isinstance(frame, LLMFullResponseStartFrame):
                 self._assistant_text = ""
+                self._message_id = str(uuid.uuid4())
 
             elif isinstance(frame, LLMTextFrame):
+                logger.info(
+                    "LLM CHUNK: {!r} | ACCUMULATED: {!r}",
+                    frame.text,
+                    self._assistant_text,
+                )
                 self._assistant_text += frame.text
 
-            elif isinstance(frame, LLMFullResponseEndFrame):
-                text = self._assistant_text.strip()
-
-                if text:
+                if self._assistant_text.strip():
                     message = {
                         "type": "server",
                         "msg": "TRANSCRIPT",
                         "role": "assistant",
-                        "text": text,
+                        "text": self._assistant_text,
+                        "live": True,
+                        "message_id": self._message_id,
                     }
 
-                    logger.info(
-                        "📤 ASSISTANT TRANSCRIPT SENT TO BROWSER: {}",
-                        message,
+                    await self.push_frame(
+                        OutputTransportMessageFrame(message=message),
+                        direction,
                     )
+
+            elif isinstance(frame, LLMFullResponseEndFrame):
+                if self._assistant_text.strip():
+                    message = {
+                        "type": "server",
+                        "msg": "TRANSCRIPT",
+                        "role": "assistant",
+                        "text": self._assistant_text.strip(),
+                        "live": False,
+                        "message_id": self._message_id,
+                    }
 
                     await self.push_frame(
                         OutputTransportMessageFrame(message=message),
@@ -97,8 +115,11 @@ class LiveAssistantTranscriptProcessor(FrameProcessor):
                     )
 
                 self._assistant_text = ""
+                self._message_id = None
 
-        await self.push_frame(frame, direction)      
+        await self.push_frame(frame, direction)
+
+
 def build_voice_pipeline(
     input_processor,
     context: LLMContext,
@@ -117,11 +138,11 @@ def build_voice_pipeline(
         tts_provider,
     )
 
-    stt = create_stt_service(stt_provider, model="small", language="mk")
-    # stt = RemoteWhisperSTTService(
-    #     url=os.getenv("REMOTE_WHISPER_URL"),
-    #     sample_rate=16000,
-    # )
+    # stt = create_stt_service(stt_provider, model="small", language="mk")
+    stt = RemoteWhisperSTTService(
+        url=os.getenv("REMOTE_WHISPER_URL"),
+        sample_rate=16000,
+    )
     llm = create_llm_service(
         llm_provider,
         model="gpt-4o",

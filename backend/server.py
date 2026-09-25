@@ -22,13 +22,15 @@ active_esp32_elder_id: str | None = None
 
 esp32_elder_event = asyncio.Event()
 
-async def send_device_command(command: str):
-    if active_esp32_websocket is None:
+async def send_device_command(command: str, websocket: WebSocket | None = None):
+    target = websocket or active_esp32_websocket
+
+    if target is None:
         logger.warning("No ESP32 connected")
         return
 
     try:
-        await active_esp32_websocket.send_text(
+        await target.send_text(
             json.dumps({
                 "type": "server",
                 "msg": command,
@@ -346,13 +348,15 @@ def create_app() -> FastAPI:
 
             # Tell the physical device to start listening.
             # The ESP32 WebSocket is now ready to be used by Pipecat.
-            await send_device_command("DEVICE.START")
+            # await send_device_command("DEVICE.START")
 
             await run_bot_session(
                 transport,
                 "esp32",
                 False,
                 elder_id=elder_id,
+                on_ready=lambda: send_device_command("DEVICE.START", websocket),
+
             )
 
         except Exception as e:
@@ -405,19 +409,18 @@ def create_app() -> FastAPI:
             "Stopping device session, elder_id={}",
             elder_id,
         )
+            task = active_sessions.get(elder_id)
 
-        task = active_sessions.get(elder_id)
+            if task:
+                await task.cancel()
+                active_sessions.pop(elder_id, None)
 
-        if task:
-            await task.cancel()
-            active_sessions.pop(elder_id, None)
+            await send_device_command("DEVICE.STOP", active_esp32_websocket)
 
-        await send_device_command("DEVICE.STOP")
+            observers.discard(websocket)
 
-        observers.discard(websocket)
-
-        if not observers:
-            device_observers.pop(elder_id, None)
+            if not observers:
+                device_observers.pop(elder_id, None)
 
     return app
 

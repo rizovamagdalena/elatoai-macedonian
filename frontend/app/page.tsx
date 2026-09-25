@@ -34,7 +34,7 @@ export default async function LandingPage() {
                 </p>
 
                 <p className="mt-10 font-[family-name:var(--font-sans)] text-sm text-[#22281F]/50">
-                    Како го користиш Elato?
+                    Како го користиш Паметен Пријател?
                 </p>
 
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -68,7 +68,7 @@ export default async function LandingPage() {
                         </h2>
 
                         <p className="mt-2 font-[family-name:var(--font-sans)] text-sm leading-6 text-[#22281F]/60">
-                            Најави се за да управуваш со Elato за твоето
+                            Најави се за да управуваш со Паметниот Пријател за твоето
                             семејство.
                         </p>
                     </Link>

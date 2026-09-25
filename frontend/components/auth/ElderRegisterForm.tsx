@@ -181,7 +181,7 @@ export default function ElderRegisterForm() {
                         ))}
                     </select>
                     <p className="text-sm text-[#22281F]/50">
-                        Ова помага Elato да знае за времетето кај тебе.
+                        Ова помага Паметен Пријател да знае за времетето кај тебе.
                     </p>
                 </div>
             </div>
@@ -247,7 +247,7 @@ export default function ElderRegisterForm() {
 
             <div className="space-y-6 rounded-2xl border border-[#22281F]/10 bg-white/40 p-6">
                 <h2 className="font-[family-name:var(--font-display)] text-lg font-medium text-[#22281F]">
-                    Направи го Elato твој
+                    Направи го Паметен Пријател твој
                 </h2>
 
                 <div className="space-y-2">
@@ -255,7 +255,7 @@ export default function ElderRegisterForm() {
                         htmlFor="toneDescription"
                         className="text-[#22281F]/80"
                     >
-                        Како сакаш Elato да разговара со тебе?
+                        Како сакаш Паметен Пријател да разговара со тебе?
                     </Label>
                     <Textarea
                         id="toneDescription"

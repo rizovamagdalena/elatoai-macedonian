@@ -1,11 +1,12 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { defaultPersonalityId } from "./data";
+import { BRAND } from "./branding";
 
 export const getOpenGraphMetadata = (title: string) => {
     return {
         openGraph: {
-            title: `${title} | Elato AI`,
+            title: `${title} | ${BRAND.name}`,
         },
     };
 };

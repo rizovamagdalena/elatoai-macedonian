@@ -10,12 +10,16 @@ import {
     Volume2,
     MessageCircle,
     Heart,
+    Loader2,
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 
-type ConnectionState = "idle" | "connecting" | "listening" | "speaking";
+type ConnectionState =
+    | "idle"
+    | "connecting"
+    | "listening"
+    | "speaking";
 
-// Same PCM downsample/encode logic as the working browser test.
 function downsampleBuffer(
     buffer: Float32Array,
     inputRate: number,
@@ -129,15 +133,15 @@ export default function VoiceChat({
     const outputQueueRef =
         useRef<Float32Array[]>([]);
 
-        
-    const [reminderBanner, setReminderBanner] = useState<string | null>(null);
-    const conversationStartedRef = useRef(false);
+    const [reminderBanner, setReminderBanner] =
+        useState<string | null>(null);
 
-    const liveMessageIdRef = useRef<string | null>(null);
+    const conversationStartedRef =
+        useRef(false);
 
-    /*
-     * Keep the clock updated.
-     */
+    const assistantDisplayedTextRef =
+        useRef<Record<string, string>>({});
+
     useEffect(() => {
         const timer = setInterval(() => {
             setCurrentTime(new Date());
@@ -146,19 +150,12 @@ export default function VoiceChat({
         return () => clearInterval(timer);
     }, []);
 
-    /*
-     * Scroll to newest message.
-     */
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({
             behavior: "smooth",
         });
     }, [messages]);
 
-    /*
-     * Refresh conversation history after the backend
-     * has saved the latest exchange.
-     */
     const refreshMessages = async () => {
         await new Promise((resolve) =>
             setTimeout(resolve, 600)
@@ -173,9 +170,6 @@ export default function VoiceChat({
         setMessages(latest);
     };
 
-    /*
-     * Audio playback.
-     */
     const setupPlayback = (ctx: AudioContext) => {
         const outputNode =
             ctx.createScriptProcessor(
@@ -225,118 +219,317 @@ export default function VoiceChat({
         outputNodeRef.current = outputNode;
     };
 
-    /*
-    * Mic press: get microphone, start streaming, tell backend to start talking.
-    */
     const startMic = async () => {
         try {
-            const mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+            const mediaStream =
+                await navigator.mediaDevices.getUserMedia({
+                    audio: true,
+                    video: false,
+                });
+
             mediaStreamRef.current = mediaStream;
 
-            const audioContext = audioContextRef.current!;
-            const sourceNode = audioContext.createMediaStreamSource(mediaStream);
+            const audioContext =
+                audioContextRef.current!;
+
+            const sourceNode =
+                audioContext.createMediaStreamSource(
+                    mediaStream
+                );
+
             sourceNodeRef.current = sourceNode;
 
-            const processorNode = audioContext.createScriptProcessor(4096, 1, 1);
-            processorNodeRef.current = processorNode;
+            const processorNode =
+                audioContext.createScriptProcessor(
+                    4096,
+                    1,
+                    1
+                );
+
+            processorNodeRef.current =
+                processorNode;
 
             processorNode.onaudioprocess = (event) => {
-                if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
-                const input = event.inputBuffer.getChannelData(0);
-                const downsampled = downsampleBuffer(input, audioContext.sampleRate, 16000);
-                wsRef.current.send(floatTo16BitPCM(downsampled));
+                if (
+                    !wsRef.current ||
+                    wsRef.current.readyState !== WebSocket.OPEN
+                ) {
+                    return;
+                }
+
+                const input =
+                    event.inputBuffer.getChannelData(0);
+
+                const downsampled =
+                    downsampleBuffer(
+                        input,
+                        audioContext.sampleRate,
+                        16000
+                    );
+
+                wsRef.current.send(
+                    floatTo16BitPCM(downsampled)
+                );
             };
 
             sourceNode.connect(processorNode);
-            processorNode.connect(audioContext.destination);
+            processorNode.connect(
+                audioContext.destination
+            );
 
             if (!conversationStartedRef.current) {
                 conversationStartedRef.current = true;
-                wsRef.current?.send(JSON.stringify({ type: "instruction", msg: "start_conversation" }));
+
+                wsRef.current?.send(
+                    JSON.stringify({
+                        type: "instruction",
+                        msg: "start_conversation",
+                    })
+                );
             }
 
-            setState("listening");
+            // Stay in "connecting" while we wait
+            // for Elato's first audio response.
+            setState("connecting");
         } catch (error) {
-            console.error("Could not start microphone:", error);
+            console.error(
+                "Could not start microphone:",
+                error
+            );
+
+            setState("idle");
         }
     };
 
-
-    /*
-    * Open the socket + audio playback only. No mic yet.
-    */
     const connectSocket = () => {
         setState("connecting");
 
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
-            sampleRate: 24000,
-        });
-        audioContextRef.current = audioContext;
+        const audioContext =
+            new (window.AudioContext ||
+                (window as any).webkitAudioContext)({
+                sampleRate: 24000,
+            });
+
+        audioContextRef.current =
+            audioContext;
+
         setupPlayback(audioContext);
 
-        const ws = new WebSocket(`${backendUrl}/ws/browser?elder_id=${elderId}`);
+        const ws = new WebSocket(
+            `${backendUrl}/ws/browser?elder_id=${elderId}`
+        );
+
         ws.binaryType = "arraybuffer";
         wsRef.current = ws;
 
         ws.onopen = async () => {
-             await startMic();
+            await startMic();
         };
 
-        ws.onclose = () => setState("idle");
-        ws.onerror = () => setState("idle");
+        ws.onclose = () => {
+            setState("idle");
+        };
+
+        ws.onerror = () => {
+            setState("idle");
+        };
 
         ws.onmessage = (event) => {
             if (typeof event.data === "string") {
-                const message = JSON.parse(event.data);
+                const message = JSON.parse(
+                    event.data
+                );
+
                 console.log(
                     "📥 FRONTEND RECEIVED:",
                     message,
                     "TIME:",
                     new Date().toISOString()
                 );
-                console.log("WEBSOCKET MESSAGE:", event.data);
+
+                console.log(
+                    "WEBSOCKET MESSAGE:",
+                    event.data
+                );
+
                 if (message.msg === "REMINDER") {
-                    setReminderBanner(message.text);
-                    setTimeout(() => setReminderBanner(null), 8000);
+                    setReminderBanner(
+                        message.text
+                    );
+
+                    setTimeout(
+                        () =>
+                            setReminderBanner(null),
+                        8000
+                    );
+
                     return;
                 }
-                  if (message.msg === "TRANSCRIPT") {
-                    console.log("ADDING TRANSCRIPT TO UI:", {
-                        role: message.role,
-                        text: message.text,
-                    });
-                    const id = crypto.randomUUID();
 
-                    setMessages((prev) => [
-                        ...prev,
+                if (
+                    message.msg === "TRANSCRIPT"
+                ) {
+                    console.log(
+                        "RECEIVED TRANSCRIPT:",
                         {
-                            conversation_id: id,
-                            elder_id: elderId,
                             role: message.role,
-                            content: message.text,
-                            created_at: new Date().toISOString(),
-                        },
-                    ]);
+                            text: message.text,
+                            live: message.live,
+                            message_id:
+                                message.message_id,
+                        }
+                    );
+
+                    setMessages((prev) => {
+                        if (
+                            message.role ===
+                            "user"
+                        ) {
+                            return [
+                                ...prev,
+                                {
+                                    conversation_id:
+                                        crypto.randomUUID(),
+                                    elder_id:
+                                        elderId,
+                                    role: "user",
+                                    content:
+                                        message.text,
+                                    created_at:
+                                        new Date().toISOString(),
+                                },
+                            ];
+                        }
+
+                        if (
+                            message.role ===
+                                "assistant" &&
+                            message.message_id
+                        ) {
+                            const messageId =
+                                message.message_id;
+
+                            const fullText =
+                                message.text || "";
+
+                            const lastSpace =
+                                fullText.lastIndexOf(
+                                    " "
+                                );
+
+                            let safeText: string;
+
+                            if (message.live) {
+                                safeText =
+                                    lastSpace === -1
+                                        ? ""
+                                        : fullText.slice(
+                                            0,
+                                            lastSpace
+                                        );
+                            } else {
+                                safeText =
+                                    fullText;
+                            }
+
+                            const existingIndex =
+                                prev.findIndex(
+                                    (item) =>
+                                        item.conversation_id ===
+                                        messageId
+                                );
+
+                            if (
+                                existingIndex === -1
+                            ) {
+                                assistantDisplayedTextRef.current[
+                                    messageId
+                                ] = safeText;
+
+                                return [
+                                    ...prev,
+                                    {
+                                        conversation_id:
+                                            messageId,
+                                        elder_id:
+                                            elderId,
+                                        role: "assistant",
+                                        content:
+                                            safeText,
+                                        created_at:
+                                            new Date().toISOString(),
+                                    },
+                                ];
+                            }
+
+                            assistantDisplayedTextRef.current[
+                                messageId
+                            ] = safeText;
+
+                            return prev.map(
+                                (item) =>
+                                    item.conversation_id ===
+                                    messageId
+                                        ? {
+                                            ...item,
+                                            content:
+                                                safeText,
+                                        }
+                                        : item
+                            );
+                        }
+
+                        return prev;
+                    });
 
                     return;
                 }
-                if (message.msg === "RESPONSE.CREATED") setState("speaking");
-                if (message.msg === "RESPONSE.COMPLETE") {
+
+                /*
+                 * RESPONSE.CREATED means Elato's
+                 * response has started, but audio may
+                 * not have arrived yet.
+                 *
+                 * We therefore DON'T switch to
+                 * "speaking" here.
+                 */
+
+                if (
+                    message.msg ===
+                    "RESPONSE.COMPLETE"
+                ) {
+                    // Elato has stopped speaking.
+                    // Show the microphone/listening state.
                     setState("listening");
-                    // refreshMessages();
                 }
+
                 return;
             }
 
-            const int16 = new Int16Array(event.data as ArrayBuffer);
-            outputQueueRef.current.push(int16ToFloat32(int16));
+            /*
+             * The first binary audio packet means
+             * Elato is actually producing voice.
+             *
+             * This is when we switch from loading
+             * to the speaking animation.
+             */
+            if (
+                state !== "speaking"
+            ) {
+                setState("speaking");
+            }
+
+            const int16 =
+                new Int16Array(
+                    event.data as ArrayBuffer
+                );
+
+            outputQueueRef.current.push(
+                int16ToFloat32(int16)
+            );
         };
     };
 
-
-    /*
-     * Stop voice conversation.
-     */
     const disconnect = () => {
         wsRef.current?.close();
 
@@ -348,7 +541,9 @@ export default function VoiceChat({
 
         mediaStreamRef.current
             ?.getTracks()
-            .forEach((track) => track.stop());
+            .forEach((track) =>
+                track.stop()
+            );
 
         audioContextRef.current?.close();
 
@@ -365,220 +560,225 @@ export default function VoiceChat({
         return () => {
             disconnect();
         };
+
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const firstName =
         elderName.split(" ")[0];
 
-    const time = currentTime.toLocaleTimeString(
-        "en-US",
-        {
-            hour: "numeric",
-            minute: "2-digit",
-        }
-    );
+    const time =
+        currentTime.toLocaleTimeString(
+            "mk-MK",
+            {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+            }
+        );
 
-    const date = currentTime.toLocaleDateString(
-        "en-US",
-        {
-            weekday: "long",
-            month: "long",
-            day: "numeric",
-        }
-    );
+    const date =
+        currentTime.toLocaleDateString(
+            "mk-MK",
+            {
+                weekday: "long",
+                month: "long",
+                day: "numeric",
+            }
+        );
 
-    const statusLabel: Record<
-    ConnectionState,
-    string
-    > = {
-        idle: "Ready",
-        connecting: "Connecting to Elato...",
-        listening: "I'm listening...",
-        speaking: "Elato is speaking...",
-    };
+    // const statusLabel: Record<
+    //     ConnectionState,
+    //     string
+    // > = {
+    //     idle: "Подготвен сум",
+    //     connecting:
+    //         "Паметниот Пријател се подготвува...",
+    //     listening: "Те слушам...",
+    //     speaking:
+    //         "Паметниот Пријател зборува...",
+    // };
 
-    const statusDescription: Record<
-        ConnectionState,
-        string
-    > = {
-        idle: "Whenever you're ready, I'm here.",
-        connecting: "Just a moment...",
-        listening: "Go ahead, I'm listening.",
-        speaking: "Please wait a moment.",
-    };
+    // const statusDescription: Record<
+    //     ConnectionState,
+    //     string
+    // > = {
+    //     idle:
+    //         "Кога ќе бидеш подготвен/а, тука сум.",
+    //     connecting:
+    //         "Само момент...",
+    //     listening:
+    //         "Слободно зборувај, те слушам.",
+    //     speaking:
+    //         "Почекај момент.",
+    // };
 
-return (
-    <div className="min-h-screen bg-[#F7F4EC]">
-        {reminderBanner && (
-            <div className="fixed left-1/2 top-4 z-50 w-[92%] max-w-md -translate-x-1/2 rounded-2xl border border-[#22281F]/10 bg-[#4B6355] px-5 py-4 text-white shadow-lg sm:top-6">
-                <div className="flex items-center gap-2">
-                    <Heart className="h-5 w-5 shrink-0" />
-                    <p className="font-[family-name:var(--font-sans)] text-base font-medium sm:text-lg">
-                        {reminderBanner}
-                    </p>
-                </div>
-            </div>
-        )}
-
-        <div className="mx-auto flex min-h-screen max-w-3xl flex-col px-6 py-10 sm:py-14">
-
-            {/* Header */}
-            <header>
-                <div className="flex items-start justify-between gap-4">
-                    <div>
-                        <div className="mb-2 flex items-center gap-2">
-                            <Heart className="h-4 w-4 text-[#4B6355]" />
-
-                            <span className="font-[family-name:var(--font-sans)] text-sm font-medium text-[#4B6355]">
-                                Elato
-                            </span>
-                        </div>
-
-                        <h1 className="font-[family-name:var(--font-display)] text-3xl font-medium tracking-tight text-[#22281F] sm:text-4xl">
-                            Good{" "}
-                            {currentTime.getHours() < 12
-                                ? "morning"
-                                : currentTime.getHours() < 18
-                                  ? "afternoon"
-                                  : "evening"}
-                            , {firstName}
-                        </h1>
-
-                        <p className="mt-1.5 font-[family-name:var(--font-sans)] text-sm text-[#22281F]/60 sm:text-base">
-                            I'm happy to talk with you.
-                        </p>
-                    </div>
-
-                    {/* Time */}
-                    <div className="hidden rounded-2xl border border-[#22281F]/10 bg-[#EFEAE0] px-5 py-3 text-right sm:block">
-                        <p className="font-[family-name:var(--font-display)] text-2xl font-medium tracking-tight text-[#22281F]">
-                            {time}
-                        </p>
-
-                        <p className="mt-0.5 font-[family-name:var(--font-sans)] text-xs text-[#22281F]/60">
-                            {date}
-                        </p>
-                    </div>
-                </div>
-
-                {/* Mobile time */}
-                <div className="mt-5 flex items-center gap-2 font-[family-name:var(--font-sans)] text-sm text-[#22281F]/60 sm:hidden">
-                    <span className="font-medium text-[#22281F]">
-                        {time}
-                    </span>
-
-                    <span>·</span>
-
-                    <span>{date}</span>
-                </div>
-            </header>
-
-            {/* Conversation */}
-            <main className="mt-10 flex min-h-0 flex-1 flex-col">
-                <div className="border-t border-[#22281F]/10 pt-8">
-
+    return (
+        <div className="min-h-screen bg-[#F7F4EC]">
+            {reminderBanner && (
+                <div className="fixed left-1/2 top-4 z-50 w-[92%] max-w-md -translate-x-1/2 rounded-2xl border border-[#22281F]/10 bg-[#4B6355] px-5 py-4 text-white shadow-lg sm:top-6">
                     <div className="flex items-center gap-2">
-                        <MessageCircle className="h-4 w-4 text-[#4B6355]" />
+                        <Heart className="h-5 w-5 shrink-0" />
 
-                        <h2 className="font-[family-name:var(--font-display)] text-xl font-medium text-[#22281F]">
-                            Conversation
-                        </h2>
-                    </div>
-
-                    <p className="mt-1 font-[family-name:var(--font-sans)] text-sm text-[#22281F]/60">
-                        Your conversation with Elato.
-                    </p>
-
-                    {/* Messages */}
-                    <div className="mt-6 min-h-[360px]">
-                        {messages.length === 0 ? (
-                            <div className="flex min-h-[360px] flex-col items-center justify-center px-6 text-center">
-                                <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-[#DCE3D6]">
-                                    <Heart className="h-7 w-7 text-[#4B6355]" />
-                                </div>
-
-                                <h2 className="font-[family-name:var(--font-display)] text-xl font-medium text-[#22281F]">
-                                    I'm here for you
-                                </h2>
-
-                                <p className="mt-2 max-w-sm font-[family-name:var(--font-sans)] text-sm leading-6 text-[#22281F]/60">
-                                    Start talking whenever you're ready.
-                                </p>
-                            </div>
-                        ) : (
-                            <div className="flex max-h-[52vh] flex-col gap-4 overflow-y-auto pr-1">
-                                {messages.map((msg) => (
-                                    <div
-                                        key={msg.conversation_id}
-                                        className={`flex ${
-                                            msg.role === "user"
-                                                ? "justify-end"
-                                                : "justify-start"
-                                        }`}
-                                    >
-                                        <div
-                                            className={`max-w-[85%] rounded-2xl px-5 py-3.5 font-[family-name:var(--font-sans)] text-base leading-7 sm:max-w-[75%] sm:text-lg ${
-                                                msg.role === "user"
-                                                    ? "rounded-br-md bg-[#4B6355] text-white"
-                                                    : "rounded-bl-md border border-[#22281F]/10 bg-[#EFEAE0] text-[#22281F]"
-                                            }`}
-                                        >
-                                            {msg.content}
-                                        </div>
-                                    </div>
-                                ))}
-
-                                <div ref={messagesEndRef} />
-                            </div>
-                        )}
+                        <p className="font-[family-name:var(--font-sans)] text-base font-medium sm:text-lg">
+                            {reminderBanner}
+                        </p>
                     </div>
                 </div>
+            )}
 
-                {/* Voice controls */}
-                <div className="mt-auto border-t border-[#22281F]/10 pt-8">
-                    <div className="flex flex-col items-center">
+            <div className="mx-auto flex min-h-screen max-w-3xl flex-col px-6 py-10 sm:py-14">
 
-                        <div className="mb-1 flex items-center gap-2">
-                            {state === "speaking" && (
-                                <Volume2 className="h-5 w-5 text-[#4B6355]" />
-                            )}
+                {/* Header */}
+                <header>
+                    <div className="flex items-start justify-between gap-4">
+                        <div>
+                            <div className="mb-2 flex items-center gap-2">
+                                <Heart className="h-4 w-4 text-[#4B6355]" />
 
-                            {state === "listening" && (
-                                <div className="h-2.5 w-2.5 animate-pulse rounded-full bg-[#4B6355]" />
-                            )}
+                                <span className="font-[family-name:var(--font-sans)] text-sm font-medium text-[#4B6355]">
+                                    Elato
+                                </span>
+                            </div>
 
-                            <p className="font-[family-name:var(--font-sans)] text-base font-semibold text-[#22281F] sm:text-lg">
-                                {statusLabel[state]}
+                            <h1 className="font-[family-name:var(--font-display)] text-3xl font-medium tracking-tight text-[#22281F] sm:text-4xl">
+                                {currentTime.getHours() < 12
+                                    ? "Добро утро"
+                                    : currentTime.getHours() < 18
+                                        ? "Добар ден"
+                                        : "Добра вечер"}
+                                , {firstName}
+                            </h1>
+
+                            <p className="mt-1.5 font-[family-name:var(--font-sans)] text-sm text-[#22281F]/60 sm:text-base">
+                                Мило ми е што разговараме.
                             </p>
                         </div>
 
-                        <p className="mb-5 font-[family-name:var(--font-sans)] text-sm text-[#22281F]/60">
-                            {statusDescription[state]}
+                        {/* Time */}
+                        <div className="hidden rounded-2xl border border-[#22281F]/10 bg-[#EFEAE0] px-5 py-3 text-right sm:block">
+                            <p className="font-[family-name:var(--font-display)] text-2xl font-medium tracking-tight text-[#22281F]">
+                                {time}
+                            </p>
+
+                            <p className="mt-0.5 font-[family-name:var(--font-sans)] text-xs text-[#22281F]/60">
+                                {date}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Mobile time */}
+                    <div className="mt-5 flex items-center gap-2 font-[family-name:var(--font-sans)] text-sm text-[#22281F]/60 sm:hidden">
+                        <span className="font-medium text-[#22281F]">
+                            {time}
+                        </span>
+
+                        <span>·</span>
+
+                        <span>{date}</span>
+                    </div>
+                </header>
+
+                {/* Conversation */}
+                <main className="mt-10 flex min-h-0 flex-1 flex-col">
+                    <div className="border-t border-[#22281F]/10 pt-8">
+
+                        <div className="flex items-center gap-2">
+                            <MessageCircle className="h-4 w-4 text-[#4B6355]" />
+
+                            <h2 className="font-[family-name:var(--font-display)] text-xl font-medium text-[#22281F]">
+                                Разговор
+                            </h2>
+                        </div>
+
+                        <p className="mt-1 font-[family-name:var(--font-sans)] text-sm text-[#22281F]/60">
+                            Твојот разговор со Паметниот Пријател.
                         </p>
 
-                        {/* Main microphone */}
-                        <div
-                            className={`relative flex h-24 w-24 items-center justify-center rounded-full shadow-sm transition-colors sm:h-28 sm:w-28 ${
-                                state === "speaking"
-                                    ? "bg-[#DCE3D6] text-[#4B6355]"
-                                    : "bg-[#4B6355] text-white"
-                            }`}
-                        >
-                            {state === "speaking" ? (
-                                <Volume2 className="h-10 w-10 sm:h-12 sm:w-12" />
+                        {/* Messages */}
+                        <div className="mt-6 min-h-[360px]">
+                            {messages.length === 0 ? (
+                                <div className="flex min-h-[360px] flex-col items-center justify-center px-6 text-center">
+                                    <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-[#DCE3D6]">
+                                        <Heart className="h-7 w-7 text-[#4B6355]" />
+                                    </div>
+                                </div>
                             ) : (
-                                <Mic className="h-10 w-10 sm:h-12 sm:w-12" />
-                            )}
+                                <div className="flex max-h-[52vh] flex-col gap-4 overflow-y-auto pr-1">
+                                    {messages.map((msg) => (
+                                        <div
+                                            key={msg.conversation_id}
+                                            className={`flex ${
+                                                msg.role === "user"
+                                                    ? "justify-end"
+                                                    : "justify-start"
+                                            }`}
+                                        >
+                                            <div
+                                                className={`max-w-[85%] rounded-2xl px-5 py-3.5 font-[family-name:var(--font-sans)] text-base leading-7 sm:max-w-[75%] sm:text-lg ${
+                                                    msg.role === "user"
+                                                        ? "rounded-br-md bg-[#4B6355] text-white"
+                                                        : "rounded-bl-md border border-[#22281F]/10 bg-[#EFEAE0] text-[#22281F]"
+                                                }`}
+                                            >
+                                                {msg.content}
+                                            </div>
+                                        </div>
+                                    ))}
 
-                            {state === "listening" && (
-                                <span className="absolute h-24 w-24 animate-ping rounded-full border border-[#4B6355]/30 sm:h-28 sm:w-28" />
+                                    <div ref={messagesEndRef} />
+                                </div>
                             )}
                         </div>
                     </div>
-                </div>
-            </main>
+
+                    {/* Voice controls */}
+                    <div className="mt-auto border-t border-[#22281F]/10 pt-8">
+                        <div className="flex flex-col items-center">
+
+                            <div className="mb-1 flex items-center gap-2">
+                                {state === "speaking" && (
+                                    <Volume2 className="h-5 w-5 text-[#4B6355]" />
+                                )}
+
+                                {state === "listening" && (
+                                    <div className="h-2.5 w-2.5 animate-pulse rounded-full bg-[#4B6355]" />
+                                )}
+
+                                {state === "connecting" && (
+                                    <Loader2 className="h-5 w-5 animate-spin text-[#4B6355]" />
+                                )}
+
+                            </div>
+
+                            {/* <p className="mb-5 font-[family-name:var(--font-sans)] text-sm text-[#22281F]/60">
+                                {statusDescription[state]}
+                            </p> */}
+
+                            {/* Main microphone */}
+                            <div
+                                className={`relative flex h-24 w-24 items-center justify-center rounded-full shadow-sm transition-colors sm:h-28 sm:w-28 ${
+                                    state === "speaking"
+                                        ? "bg-[#DCE3D6] text-[#4B6355]"
+                                        : "bg-[#4B6355] text-white"
+                                }`}
+                            >
+                                {state === "speaking" ? (
+                                    <Volume2 className="h-10 w-10 sm:h-12 sm:w-12" />
+                                ) : state === "connecting" ? (
+                                    <Loader2 className="h-10 w-10 animate-spin sm:h-12 sm:w-12" />
+                                ) : (
+                                    <Mic className="h-10 w-10 sm:h-12 sm:w-12" />
+                                )}
+
+                                {state === "listening" && (
+                                    <span className="absolute h-24 w-24 animate-ping rounded-full border border-[#4B6355]/30 sm:h-28 sm:w-28" />
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            </div>
         </div>
-    </div>
-);
+    );
 }

@@ -204,7 +204,7 @@ WebsocketStream wsStream; //guard with wsMutex
 I2SStream i2sInput; //access from micTask only
 StreamCopy micToWsCopier(wsStream, i2sInput);
 volatile bool i2sInputFlushScheduled = false;
-const int MIC_COPY_SIZE = 64;
+const int MIC_COPY_SIZE = 1024;
 
 void micTask(void *parameter) {
     // Configure and start I2S input stream.

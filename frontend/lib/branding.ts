@@ -1,7 +1,7 @@
 export const BRAND = {
-    name: "Elato",
-    fullName: "Elato AI",
-    tagline: "Your caring voice companion",
+    name: "Паметен Пријател",
+    fullName: "Паметен Пријател",
+    tagline: "Вашиот грижлив гласовен придружник",
     description:
-        "A conversational AI companion designed to support older adults in everyday life.",
+        "Разговорен ВИ Пријател за поддршка на постари лица, обезбедувајќи подршка, друштво и разговор во секојдневието.",
 } as const;

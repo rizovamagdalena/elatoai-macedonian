@@ -120,7 +120,7 @@ export default function CreateElderForm() {
 
                         <p className="mt-1 text-sm leading-6 text-[#22281F]/50">
                             Започнете со внесување на основните информации за
-                            лицето кое ќе го користи Elato.
+                            лицето кое ќе го користи Паметниот Пријател.
                         </p>
                     </div>
                 </div>
@@ -144,7 +144,7 @@ export default function CreateElderForm() {
                         />
 
                         <p className="text-sm text-[#22281F]/50">
-                            Ова е името со кое Elato ќе му се обраќа на
+                            Ова е името со кое Паметниот Пријател ќе му се обраќа на
                             корисникот.
                         </p>
                     </div>
@@ -189,7 +189,7 @@ export default function CreateElderForm() {
 
                         <p className="mt-1 text-sm leading-6 text-[#22281F]/50">
                             Креирајте податоци за најава кои корисникот ќе ги
-                            користи за пристап до Elato од својот уред.
+                            користи за пристап до Паметниот Пријател од својот уред.
                         </p>
                     </div>
                 </div>
@@ -266,7 +266,7 @@ export default function CreateElderForm() {
                         </h2>
 
                         <p className="mt-1 text-sm leading-6 text-[#22281F]/50">
-                            Прилагодете го начинот на кој Elato ќе комуницира
+                            Прилагодете го начинот на кој Паметниот Пријател ќе комуницира
                             со корисникот.
                         </p>
                     </div>
@@ -278,7 +278,7 @@ export default function CreateElderForm() {
                             htmlFor="tone"
                             className="text-[#22281F]/80"
                         >
-                            Како да звучи Elato?
+                            Како да звучи Паметниот Пријател?
                         </Label>
 
                         <Textarea
@@ -319,7 +319,7 @@ export default function CreateElderForm() {
 
                         <p className="text-sm text-[#22281F]/50">
                             Опционално. Оставете го празно за да се користи
-                            стандардниот поздрав на Elato.
+                            стандардниот поздрав на Паметниот Пријател.
                         </p>
                     </div>
                 </div>

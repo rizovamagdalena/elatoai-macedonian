@@ -11,6 +11,7 @@ import MedicationsSection from "@/components/ElderDashboard/MedicationsSection";
 import FamilyMembersSection from "@/components/ElderDashboard/FamilyMembersSection";
 import ConversationSummaries from "@/components/ElderDashboard/ConversationSummaries";
 import { Button } from "@/components/ui/button";
+import { getDailyDigestsForElder } from "@/db/daily_caregiver_digests";
 
 export const revalidate = 0;
 export const dynamic = "force-dynamic";
@@ -41,6 +42,11 @@ export default async function CaregiverElderDashboard({
         supabase,
         elder.elder_id
     );
+
+    const dailyDigests =
+        await getDailyDigestsForElder(
+            elder.elder_id
+        );
 
     return (
         <div className="min-h-screen bg-[#F7F4EC]">
@@ -131,18 +137,20 @@ export default async function CaregiverElderDashboard({
                     </div>
                 </div>
 
-                {/* Recent conversations */}
+                {/* Daily summary */}
                 <div className="mt-12 border-t border-[#22281F]/10 pt-10">
                     <h2 className="font-[family-name:var(--font-display)] text-xl font-medium text-[#22281F]">
-                        Неодамнешни разговори
+                        Дневен преглед
                     </h2>
 
                     <p className="mt-1 font-[family-name:var(--font-sans)] text-sm text-[#22281F]/60">
-                        Краток преглед на неодамнешните разговори со асистентот.
+                        Краток преглед на разговорите и активностите.
                     </p>
 
                     <div className="mt-5">
-                        <ConversationSummaries elderId={elder.elder_id} />
+                        <ConversationSummaries
+                            digests={dailyDigests}
+                        />
                     </div>
                 </div>
             </div>

@@ -36,7 +36,7 @@ export default async function CreateElderPage() {
                     </h1>
 
                     <p className="mt-3 max-w-2xl text-sm leading-6 text-[#22281F]/50 md:text-base">
-                        Поставете го Elato за повозрасен член на семејството.
+                        Поставете го Паметниот Пријател за повозрасен член на семејството.
                         Можете да ги внесете неговите основни информации,
                         да креирате податоци за најава и да го прилагодите
                         начинот на кој асистентот ќе комуницира со него.
@@ -47,4 +47,4 @@ export default async function CreateElderPage() {
             </div>
         </div>
     );
-}s
+}

@@ -14,7 +14,7 @@ from supabase import create_client, Client
 import pytz
 from weather import get_weather, format_weather_for_prompt
 from loguru import logger
-
+from datetime import datetime, time, timedelta, timezone
 load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -113,7 +113,7 @@ def summarize_session(elder_id: str, session_id: str) -> str | None:
 {{"summary": "...", "mood": "neutral"}}
 
 Правила за "summary":
-- Природен, течен, разговорен македонски јазик. Точно 2 до 3 кратки реченици.
+- Природен, течен, разговорен македонски јазик. Точно 1 до 3 кратки реченици со најважните факти поврзани со корисникот и тоа што го кажал од разговорот
 - Секогаш го користиш името {name}. НИКОГАШ не пишуваш „старец", „старица", „постар човек", „возрасна личност" или слично.
 - {gender_rule}
 - Запиши САМО факти од разговорот — што било кажано, споменато или направено.
@@ -160,6 +160,22 @@ def summarize_session(elder_id: str, session_id: str) -> str | None:
             "embedding": embedding,
         }
     ).execute()
+
+    try:
+        skopje_tz = pytz.timezone("Europe/Skopje")
+        local_date = datetime.now(skopje_tz).date()
+
+        summarize_daily_activity(
+            elder_id=elder_id,
+            target_date=local_date,
+        )
+
+    except Exception as e:
+        logger.exception(
+            "Failed to update daily caregiver digest for elder {}: {}",
+            elder_id,
+            e,
+        )
 
     return summary_text
 
@@ -266,6 +282,7 @@ def create_system_prompt(elder: dict) -> str:
     Не барај чувствителни лични или финансиски информации.
     Одговарај кратко — 1 до 2 реченици за повеќето размени, како природен говорен разговор.
     Само кога објаснуваш нешто подетално, ако раскажуваш за нешто или {elder['name']} бара повеќе детали, дозволен е подолг одговор.
+    Ако во текстот има знак како степени, или други специјални знаци, или кратенки кои вои нормалниот јазик се изговараат целосно, замени ги со зборот како што се изговараат. На пример, 20° → 20 степени, 3D → три димензионално, 1/2 → половина, итн., но бројките пишувај ги со цифри, не со зборови.
 
 """
 
@@ -364,3 +381,143 @@ def get_similar_summaries(
         for summary in summaries
         if summary.get("similarity", 0) >= 0.70
     ]
+
+def get_daily_summaries(
+    elder_id: str,
+    target_date: datetime.date,
+) -> list[dict]:
+    """Fetch all session summaries for an elder on a specific local date."""
+
+    tz = pytz.timezone("Europe/Skopje")
+
+    # Start and end of the selected day in Skopje.
+    start_local = tz.localize(
+        datetime.combine(target_date, time.min)
+    )
+    end_local = start_local + timedelta(days=1)
+
+    # Convert boundaries to UTC for the Supabase query.
+    start_utc = start_local.astimezone(timezone.utc).isoformat()
+    end_utc = end_local.astimezone(timezone.utc).isoformat()
+
+    result = (
+        _client.table("conversation_summaries")
+        .select("*")
+        .eq("elder_id", elder_id)
+        .gte("created_at", start_utc)
+        .lt("created_at", end_utc)
+        .order("created_at")
+        .execute()
+    )
+
+    return result.data or []
+
+def summarize_daily_activity(
+    elder_id: str,
+    target_date: datetime.date,
+) -> dict | None:
+    """Generate or update the caregiver's daily digest."""
+
+    import json
+    from openai import OpenAI
+
+    summaries = get_daily_summaries(elder_id, target_date)
+
+    if not summaries:
+        logger.info(
+            "No summaries found for elder {} on {}",
+            elder_id,
+            target_date,
+        )
+        return None
+
+    elder = get_elder(elder_id)
+    if not elder:
+        logger.warning("Elder {} not found", elder_id)
+        return None
+
+    elder_name = elder["name"]
+
+    summaries_text = "\n".join(
+        f"- {summary['summary_text']}"
+        for summary in summaries
+    )
+
+    system_prompt = f"""
+Ти создаваш краток дневен преглед за овластен негувател, врз основа на резимеата од
+ разговорите на {elder_name} со дигиталниот придружник Паметен Пријател.
+   Датум: {target_date.isoformat()} Број на разговори: {len(summaries)}
+     Врати САМО валиден JSON во следнава форма: {{ "highlights": "...", "activities": [], "wellbeing_observations": [] }} 
+     Правила:
+        ОПШТО:
+    - Пиши на природен, јасен и едноставен македонски јазик. 
+    - Користи го името {elder_name} кога е природно, но не го повторувај непотребно. 
+    - Обедини ги информациите од сите разговори во еден дневен преглед. 
+    - Ако истата информација се појавува повеќе пати, спомни ја само еднаш. 
+    - Не измислувај информации што не се присутни во резимеата. 
+    - Не претпоставувај чувства, активности, планови или настани. 
+    - Не поставувај медицински или психолошки дијагнози. 
+    - Не претворај обична тема во предупредување. 
+    - Не вклучувај непотребни интимни или чувствителни детали. 
+        HIGHLIGHTS: 
+    - Напиши 2 до 4 кратки реченици, во зависност од количината на информации, со најважните факти од денот. 
+    - Вклучи ги најважните информации од денот. 
+    - Комбинирај ги состојбата, значајните активности и важните теми од разговорите. 
+    - Не испуштај конкретни и корисни детали само затоа што се појавиле во еден разговор. 
+    - На пример, ако лицето споменало дека било во продавница, купило овошје и зеленчук и разговарало за вечера со компири и моркови,
+      овие информации може да бидат дел од дневниот преглед. 
+      ACTIVITIES: - Стави кратки, конкретни активности или теми што се појавиле во разговорите. 
+      - Вклучи активности како посета на продавница, средба или разговор со семејството, готвење, прошетка, гледање телевизија, хобија или други активности само ако се експлицитно споменати. 
+      - Може да вклучиш и практични теми за кои лицето разговарало, ако се релевантни за дневниот контекст. 
+      - Не додавај активности што само ги планирало лицето, освен ако е јасно дека планот е важен дел од разговорот. 
+      - Секоја ставка нека биде кратка и јасна. WELLBEING_OBSERVATIONS: 
+      - Вклучи само директно изразени чувства или состојби, како „се чувствува добро“, „била малку уморна“, „била загрижена“ или „била расположена“. 
+      - Не прави медицински или психолошки заклучоци. - Не користи дијагнози или клинички термини. 
+      - Не извлекувај заклучоци само од темата на разговорот. 
+      - Ако нема јасна информација за расположението или состојбата, врати празна листа. Ако нема доволно информации за одредена секција, врати празна листа или празен стринг за таа секција.
+"""
+
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": summaries_text},
+        ],
+        max_tokens=500,
+        response_format={"type": "json_object"},
+    )
+
+    parsed = json.loads(response.choices[0].message.content)
+
+    highlights = parsed.get("highlights", "").strip()
+    activities = parsed.get("activities", [])
+    wellbeing = parsed.get("wellbeing_observations", [])
+
+    digest_data = {
+        "elder_id": elder_id,
+        "digest_date": target_date.isoformat(),
+        "digest_text": highlights,
+        "activities": activities,
+        "wellbeing_observations": wellbeing,
+        "conversation_count": len(summaries),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    result = (
+        _client.table("daily_caregiver_digests")
+        .upsert(
+            digest_data,
+            on_conflict="elder_id,digest_date",
+        )
+        .execute()
+    )
+
+    logger.info(
+        "Daily digest generated for elder {} on {}",
+        elder_id,
+        target_date,
+    )
+
+    return result.data[0] if result.data else None

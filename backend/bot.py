@@ -9,7 +9,7 @@
 import os
 import time
 from typing import Literal
-
+from typing import Literal, Callable, Awaitable
 from voice_pipeline import build_voice_pipeline
 from dotenv import load_dotenv
 from gem_live_route import build_gem_live_route
@@ -152,6 +152,7 @@ class RealtimeOutputControlProcessor(FrameProcessor):
 
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         await super().process_frame(frame, direction)
+        logger.debug("RealtimeOutputControlProcessor received frame: {}", type(frame).__name__)
 
         if direction is FrameDirection.DOWNSTREAM:
             if isinstance(frame, (UserStoppedSpeakingFrame, VADUserStoppedSpeakingFrame)):
@@ -187,68 +188,6 @@ class RealtimeOutputControlProcessor(FrameProcessor):
 
         await self.push_frame(frame, direction)
 
-# class LiveTranscriptProcessor(FrameProcessor):
-#     """Send user and assistant text to the browser for live transcript updates."""
-
-#     def __init__(self, elder_id: str | None = None):
-#         super().__init__()
-#         self.elder_id = elder_id
-#         self._assistant_text = ""
-
-#     async def process_frame(self, frame: Frame, direction: FrameDirection):
-#         await super().process_frame(frame, direction)
-
-#         if direction is FrameDirection.DOWNSTREAM:
-
-#             # User's speech after STT
-#             # if isinstance(frame, TranscriptionFrame) and frame.text.strip():
-#             #     message = {
-#             #         "type": "server",
-#             #         "msg": "TRANSCRIPT",
-#             #         "role": "user",
-#             #         "text": frame.text,
-#             #     }
-
-#             #     await broadcast_device_message(self.elder_id, message)
-
-#             #     await self.push_frame(
-#             #         OutputTransportMessageFrame(message=message),
-#             #         direction,
-#             #     )
-
-#             # Collect the assistant's actual TTS text
-#             if isinstance(frame, TTSTextFrame) and frame.text.strip():
-#                 self._assistant_text = frame.text.strip()
-
-#             # The moment the assistant's audio starts,
-#             # send the already-known text to the browser.
-#             elif isinstance(frame, OutputAudioRawFrame):
-#                 if self._assistant_text:
-#                     message = {
-#                         "type": "server",
-#                         "msg": "TRANSCRIPT",
-#                         "role": "assistant",
-#                         "text": self._assistant_text,
-#                     }
-
-#                     logger.info(
-#                         "📤 ASSISTANT TRANSCRIPT SENT TO BROWSER: {}",
-#                         message,
-#                     )
-
-#                     await broadcast_device_message(
-#                         self.elder_id,
-#                         message,
-#                     )
-
-#                     await self.push_frame(
-#                         OutputTransportMessageFrame(message=message),
-#                         direction,
-#                     )
-
-#                     self._assistant_text = ""
-
-#         await self.push_frame(frame, direction)
 
 def create_esp32_auth_message() -> dict:
     return {
@@ -270,6 +209,7 @@ async def run_bot_session(
     transport_kind: Literal["browser", "esp32"],
     handle_sigint: bool = False,
     elder_id: str | None = None,
+    on_ready: Callable[[], Awaitable[None]] | None = None,
 ):
     voice_route = CURRENT_VOICE_ROUTE
     session_id = str(uuid.uuid4())
@@ -340,6 +280,8 @@ async def run_bot_session(
         logger.info(f"{transport_kind} client connected")
         if elder_id:
             active_sessions[elder_id] = task
+        if on_ready:
+            await on_ready()
 
     @transport.event_handler("on_client_disconnected")
     async def on_client_disconnected(transport, client):
