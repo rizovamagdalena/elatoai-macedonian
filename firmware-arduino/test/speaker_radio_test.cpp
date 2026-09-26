@@ -20,10 +20,10 @@
 #include "Audio.h"
 
 // Define I2S connections
-#define I2S_LRC D0
-#define I2S_BCLK D1
-#define I2S_DOUT D2
-#define I2S_SD_OUT D3
+#define I2S_LRC     25
+#define I2S_BCLK    26
+#define I2S_DOUT    27
+#define I2S_SD_OUT  10
 
 // #define I2S_LRC 18
 // #define I2S_BCLK 21
@@ -33,8 +33,8 @@
 Audio audio;
 
 // // Wifi Credentials
-String ssid = "<wifi>";   // replace your WiFi name
-String password = "<pw>"; // replace your WiFi password
+String ssid = "Magdalena's Wifi";   // replace your WiFi name
+String password = "magi1234"; // replace your WiFi password
 
 void setup()
 {
@@ -77,7 +77,8 @@ void setup()
     // audio.connecttohost("www.surfmusic.de/m3u/100-5-das-hitradio,4529.m3u");
     // audio.connecttohost("stream.1a-webradio.de/deutsch/mp3-128/vtuner-1a");
     // audio.connecttohost("www.antenne.de/webradio/antenne.m3u");
-    audio.connecttohost("http://vis.media-ice.musicradio.com/CapitalMP3");
+    // audio.connecttohost("http://vis.media-ice.musicradio.com/CapitalMP3");
+    audio.connecttohost("https://s6.yesstreaming.net:17082/stream");
 }
 
 void loop()

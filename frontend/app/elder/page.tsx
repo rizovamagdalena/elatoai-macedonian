@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
-import { MessageCircle, Smartphone, Settings } from "lucide-react";
+import { MessageCircle, Speaker, IdCard } from "lucide-react";
 import { createClient } from "@/utils/supabase/server";
 import { Button } from "@/components/ui/button";
 
@@ -53,7 +53,7 @@ export default async function ElderHome() {
                             variant="outline"
                             className="h-16 w-full gap-3 rounded-full border-[#22281F]/20 text-lg font-medium text-[#22281F] hover:bg-[#EFEAE0]"
                         >
-                            <Smartphone className="h-6 w-6" />
+                            <Speaker className="h-6 w-6" />
                             Разговарај преку уред
                         </Button>
                     </Link>
@@ -64,8 +64,8 @@ export default async function ElderHome() {
                                 variant="outline"
                                 className="h-16 w-full gap-3 rounded-full border-[#22281F]/20 text-lg font-medium text-[#22281F] hover:bg-[#EFEAE0]"
                             >
-                                <Settings className="h-6 w-6" />
-                                Мои информации
+                                <IdCard className="h-6 w-6" />
+                                Мои податоци
                             </Button>
                         </Link>
                     )}

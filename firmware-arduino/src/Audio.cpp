@@ -2,6 +2,7 @@
 #include "Audio.h"
 #include "PitchShift.h"
 #include <LittleFS.h>
+#include <driver/i2s.h>
 // WEBSOCKET
 SemaphoreHandle_t wsMutex;
 WebSocketsClient webSocket;
@@ -121,6 +122,37 @@ void transitionToListening() {
     // webSocket.disableHeartbeat();
 }
 
+void setupRawSpeakerI2S()
+{
+    i2s_config_t speakerConfig = {
+        .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
+        .sample_rate = 24000,
+        .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
+        .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT,
+        .communication_format = I2S_COMM_FORMAT_I2S,
+        .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
+        .dma_buf_count = 8,
+        .dma_buf_len = 64,
+        .use_apll = false,
+        .tx_desc_auto_clear = true,
+        .fixed_mclk = 0
+    };
+
+    i2s_pin_config_t speakerPins = {
+        .bck_io_num = 26,
+        .ws_io_num = 25,
+        .data_out_num = 27,
+        .data_in_num = I2S_PIN_NO_CHANGE
+    };
+
+    i2s_driver_install(I2S_NUM_0, &speakerConfig, 0, NULL);
+    i2s_set_pin(I2S_NUM_0, &speakerPins);
+    i2s_zero_dma_buffer(I2S_NUM_0);
+
+    Serial.println("✅ Raw ESP-IDF speaker I2S ready");
+}
+
+
 // audioStreamTask -> copier.copy() (conditional on webSocket.isConnected())
 void audioStreamTask(void *parameter) {
     Serial.println("Starting I2S stream pipeline...");
@@ -154,46 +186,100 @@ void audioStreamTask(void *parameter) {
     
     queue.begin();
 
-    auto config = i2s.defaultConfig(TX_MODE);
+    // auto config = i2s.defaultConfig(TX_MODE);
 
-    config.copyFrom(info);
+    // config.copyFrom(info);
 
-    config.sample_rate = 24000;
-    config.bits_per_sample = 16;
-    config.channels = 1;
+    // config.sample_rate = 24000;
+    // config.bits_per_sample = 16;
+    // config.channels = 1;
 
-    config.pin_bck = 26;
-    config.pin_ws = 25;
-    config.pin_data = 27;
-    config.port_no = I2S_NUM_0;
+    // config.pin_bck = 26;
+    // config.pin_ws = 25;
+    // config.pin_data = 27;
+    // config.port_no = I2S_NUM_0;
 
-    i2s.begin(config);
+    // i2s.begin(config);
+
+    setupRawSpeakerI2S();   
+
 
     // Initialize both volume streams once
-    auto vcfg = volume.defaultConfig();
-    vcfg.copyFrom(info);
-    vcfg.allow_boost = true;
-    volume.begin(vcfg);
+    // auto vcfg = volume.defaultConfig();
+    // vcfg.copyFrom(info);
+    // vcfg.allow_boost = true;
+    // volume.begin(vcfg);
+
+    File testFile = LittleFS.open("/recording.raw", "r");
+
+    if (!testFile) {
+        Serial.println("❌ Could not open /recording.raw");
+    } else {
+        // Serial.printf("▶️ Playing recording.raw: %d bytes\n", testFile.size());
+
+        // uint8_t buf[1024];
+
+        // while (testFile.available()) {
+        //     size_t n = testFile.read(buf, sizeof(buf));
+
+        //     size_t written = 0;
+        //     i2s_write(
+        //         I2S_NUM_0,
+        //         buf,
+        //         n,
+        //         &written,
+        //         portMAX_DELAY
+        //     );
+        // }
+
+        // testFile.close();
+
+        // Serial.println("✅ recording.raw playback finished");
+    }
+
     
-    auto vcfgPitch = volumePitch.defaultConfig();
-    vcfgPitch.copyFrom(info);
-    vcfgPitch.allow_boost = true;
-    volumePitch.begin(vcfgPitch);
+    // auto vcfgPitch = volumePitch.defaultConfig();
+    // vcfgPitch.copyFrom(info);
+    // vcfgPitch.allow_boost = true;
+    // volumePitch.begin(vcfgPitch);
 
     while (1) {
         if ( i2sOutputFlushScheduled) {
-            i2sOutputFlushScheduled = false;
-            i2s.flush();
-            volume.flush();
-            volumePitch.flush();
+            // i2sOutputFlushScheduled = false;
+            // i2s.flush();
+            // volume.flush();
+            // volumePitch.flush();
             queue.flush();
         }
 
         if (webSocket.isConnected() && deviceState == SPEAKING) {
-            if (currentPitchFactor != 1.0f) {
-                pitchCopier.copy();
-            } else {
-                copier.copy();
+            // if (currentPitchFactor != 1.0f) {
+            //     pitchCopier.copy();
+            // } else {
+            //     copier.copy();
+            // }
+
+            if (webSocket.isConnected() && deviceState == SPEAKING) {
+                size_t available = queue.available();
+
+                if (available > 0) {
+                    uint8_t buffer[1024];
+
+                    size_t toRead = min(available, sizeof(buffer));
+                    size_t read = queue.readBytes(buffer, toRead);
+
+                    if (read > 0) {
+                        size_t written = 0;
+
+                        i2s_write(
+                            I2S_NUM_0,
+                            buffer,
+                            read,
+                            &written,
+                            portMAX_DELAY
+                        );
+                    }
+                }
             }
         }
         else {

@@ -202,6 +202,20 @@ class OpusWebsocketOutputTransport(FastAPIWebsocketOutputTransport):
         if self._client.is_closing or not self._client.is_connected:
             return False
 
+        logger.info(
+            "🔊 ESP32 audio frame: sample_rate=%s channels=%s bytes=%s",
+            frame.sample_rate,
+            frame.num_channels,
+            len(frame.audio),
+        )
+
+        logger.info(
+        "🔊 ESP32 audio frame: sample_rate={} channels={} bytes={}",
+        frame.sample_rate,
+        frame.num_channels,
+        len(frame.audio),
+    )
+                
         # TEMPORARY DEBUG: save raw TTS PCM before Opus encoding
         if self._debug_wav is not None:
             self._debug_wav.writeframes(frame.audio)
@@ -242,7 +256,6 @@ class BaseRawWebsocketTransport(FastAPIWebsocketTransport):
 
 class Esp32WebsocketTransport(BaseRawWebsocketTransport):
     output_transport_cls = OpusWebsocketOutputTransport
-
 
 class BrowserWebsocketTransport(BaseRawWebsocketTransport):
     output_transport_cls = RawPCMWebsocketOutputTransport

@@ -4,7 +4,7 @@ export default async function ResetPasswordPage() {
     const admin = createAdminClient();
 
     const { error } = await admin.auth.admin.updateUserById(
-        "7994aee5-862d-4391-a644-71e98ea45ad2",
+        "82a11e59-437e-4900-907b-45ea2e796cc8",
         {
             password: "Password1",
         }

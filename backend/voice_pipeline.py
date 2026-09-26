@@ -152,14 +152,17 @@ def build_voice_pipeline(
         tts_provider,
     )
 
-    stt = create_stt_service(stt_provider, model="small", language="mk")
-    # stt = RemoteWhisperSTTService(
-    #     url=os.getenv("REMOTE_WHISPER_URL"),
-    #     sample_rate=16000,
-    # )
+    #For Collab run whisper server
+    stt = RemoteWhisperSTTService(
+        url=os.getenv("REMOTE_WHISPER_URL"),
+        sample_rate=16000,
+    
+    )
+    # stt = create_stt_service(stt_provider, model="small", language="mk")
+
     llm = create_llm_service(
         llm_provider,
-        model="gpt-4o-mini",
+        model="gpt-4o",
         system_instruction=system_instruction,
     )
     tts = create_tts_service(tts_provider)

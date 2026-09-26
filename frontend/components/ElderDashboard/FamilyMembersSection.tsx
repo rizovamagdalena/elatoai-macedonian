@@ -54,7 +54,7 @@ export default function FamilyMembersSection({
         <div className="font-[family-name:var(--font-sans)]">
             {familyMembers.length === 0 && !showForm && (
                 <p className="text-sm text-[#22281F]/50">
-                    Nothing on file yet.
+                    Сè уште нема внесено членови на семејството.
                 </p>
             )}
 
@@ -98,39 +98,42 @@ export default function FamilyMembersSection({
                 <div className="mt-4 flex flex-col gap-4 rounded-2xl bg-[#EFEAE0]/60 p-5">
                     <div className="flex flex-col gap-1.5">
                         <Label htmlFor="fam-name" className="text-[#22281F]/70">
-                            Name
+                            Име
                         </Label>
                         <Input
                             id="fam-name"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
-                            placeholder="e.g. Ana"
+                            placeholder="на пр. Ана"
                             className="rounded-lg border-[#22281F]/15 bg-white focus-visible:ring-[#4B6355]"
                         />
                     </div>
 
                     <div className="flex flex-col gap-1.5">
                         <Label htmlFor="fam-relation" className="text-[#22281F]/70">
-                            Relation
+                            Роднинска врска
                         </Label>
                         <Input
                             id="fam-relation"
                             value={relation}
                             onChange={(e) => setRelation(e.target.value)}
-                            placeholder="e.g. daughter"
+                            placeholder="на пр. ќерка"
                             className="rounded-lg border-[#22281F]/15 bg-white focus-visible:ring-[#4B6355]"
                         />
                     </div>
 
                     <div className="flex flex-col gap-1.5">
                         <Label htmlFor="fam-notes" className="text-[#22281F]/70">
-                            Notes (optional)
+                            Белешки{" "}
+                            <span className="font-normal text-[#22281F]/40">
+                                (незадолжително)
+                            </span>
                         </Label>
                         <Input
                             id="fam-notes"
                             value={notes}
                             onChange={(e) => setNotes(e.target.value)}
-                            placeholder="e.g. lives in Skopje, calls Sundays"
+                            placeholder="на пр. живее во Скопје, се јавува во недела"
                             className="rounded-lg border-[#22281F]/15 bg-white focus-visible:ring-[#4B6355]"
                         />
                     </div>
@@ -140,7 +143,7 @@ export default function FamilyMembersSection({
                         disabled={submitting}
                         className="rounded-full bg-[#4B6355] text-[#F7F4EC] hover:bg-[#3B4F44]"
                     >
-                        {submitting ? "Saving..." : "Save family member"}
+                        {submitting ? "Се зачувува..." : "Зачувај член на семејството"}
                     </Button>
                 </div>
             )}
@@ -152,7 +155,7 @@ export default function FamilyMembersSection({
                 className="mt-4 gap-1.5 rounded-full text-[#4B6355] hover:bg-[#DCE3D6]/60 hover:text-[#3B4F44]"
             >
                 <Plus size={14} />
-                {showForm ? "Cancel" : "Add family member"}
+                {showForm ? "Откажи" : "Додади член на семејството"}
             </Button>
         </div>
     );

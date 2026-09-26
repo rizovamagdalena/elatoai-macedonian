@@ -1,178 +1,117 @@
 # ElderlyCompanion
+The frontend directory contains the Next.js web application.
 
-ElderlyCompanion is a voice-based digital companion designed to provide older adults with a simple, natural, and accessible way to interact with an AI assistant.
+It provides the user interface for caregivers and elders, handles authentication and profile management, displays conversation-related information, and provides the browser-based voice conversation interface.
 
-The application combines a web interface, voice interaction, conversational memory, and a physical voice device to create a more natural experience for elderly users.
-
-## Features
-
-* 🎙️ **Voice conversations** — Talk naturally with the assistant using speech.
-* 🗣️ **Macedonian language support** — Designed for natural conversational interaction in Macedonian.
-* 🧠 **Conversational memory** — Relevant information from previous conversations can be retrieved using semantic similarity.
-* 👤 **Elder profiles** — Store information such as name, age, family members, and medications.
-* 💊 **Medication information** — Keep track of medications.
-* 👨‍👩‍👧 **Family information** — Store family members and information that can be relevant during conversations.
-* 🌤️ **Context-aware conversations** — The assistant can use information such as the current time, location, and weather.
-* 📱 **Web interface** — Manage elder profiles and interact with the assistant through the web application.
-* 🔊 **Physical voice device** — An ESP32-based device provides a dedicated microphone and speaker interface.
-* 💾 **Conversation summaries** — Completed conversations are summarized and stored as semantic memories for later retrieval.
-
-## How It Works
-
-ElderlyCompanion consists of three main parts:
-
-```text
-                    ┌─────────────────────┐
-                    │   Web Application   │
-                    │       Next.js      │
-                    └──────────┬──────────┘
-                               │
-                               │ WebSocket
-                               │
-                    ┌──────────▼──────────┐
-                    │    Backend Server   │
-                    │ FastAPI + Pipecat   │
-                    └──────────┬──────────┘
-                               │
-                 ┌─────────────┼─────────────┐
-                 │             │             │
-                 ▼             ▼             ▼
-              Speech          LLM           TTS
-               STT          Processing      Voice
-                 │             │             │
-                 └─────────────┼─────────────┘
-                               │
-                    ┌──────────▼──────────┐
-                    │       Supabase      │
-                    │  Database + Memory  │
-                    └─────────────────────┘
-                               │
-                    ┌──────────▼──────────┐
-                    │    ESP32 Device     │
-                    │ Microphone + Speaker│
-                    └─────────────────────┘
-```
-
-### Conversation Flow
-
-1. The elder starts a voice conversation.
-2. Audio is captured through the browser or physical device.
-3. Speech is converted to text using the configured STT provider.
-4. Relevant memories from previous conversations are retrieved using semantic similarity.
-5. The LLM generates a response using the elder's profile and relevant context.
-6. The response is converted back to speech using the configured TTS provider.
-7. The conversation is stored in the database.
-8. Completed conversations can be summarized and stored as long-term semantic memories.
-
-## Technology Stack
-
-### Frontend
-
-* Next.js
-* React
-* TypeScript
-* Tailwind CSS
-* Supabase
-
-### Backend
-
-* Python
-* FastAPI
-* Pipecat
-* WebSockets
-* OpenAI
-* Speech-to-Text providers
-* Text-to-Speech providers
-
-### Database & Memory
-
-* Supabase
-* PostgreSQL
-* Vector embeddings
-* Semantic similarity search
-
-### Hardware
-
-* ESP32
-* INMP441 I2S microphone
-* MAX98357 I2S amplifier
-* 3W speaker
-
-## Project Structure
-
-```text
-ElderlyCompanion/
+Frontend Structure
+frontend/
 │
-├── backend/
-│   ├── models/
-│   ├── bot.py
-│   ├── server.py
-│   ├── scheduler.py
-│   └── voice_pipeline.py
+├── app/
+│   ├── caregiver/
+│   ├── elder/
+│   ├── login/
+│   └── ...
 │
-├── frontend/
-│   ├── app/
-│   ├── components/
-│   ├── db/
-│   └── utils/
+├── components/
+│   ├── ElderDashboard/
+│   ├── VoiceChat/
+│   ├── DeviceVoiceChat/
+│   └── ...
 │
-└── firmware-arduino/
-    ├── src/
-    ├── platformio.ini
-    └── partition.csv
-```
+├── db/
+│   └── ...
+│
+└── utils/
+    └── ...
+Main Responsibilities
 
-## Configuration
+The frontend is responsible for:
 
-The application uses environment variables for external services and configuration.
+User authentication
+Caregiver and elder profile management
+Medication and family member management
+Caregiver dashboards
+Browser-based voice conversations
+Starting conversations through the ESP32 device
+Communication with Supabase
+Communication with the backend through WebSockets
+User Interfaces
+Caregiver
 
-Depending on the enabled providers, configuration may include:
+The caregiver interface allows caregivers to:
 
-* Supabase URL and credentials
-* OpenAI API key
-* Speech-to-text provider credentials
-* Text-to-speech provider credentials
-* Backend WebSocket URL
-* Weather service configuration
+Manage elder profiles
+Manage medications
+Manage family members
+View conversation summaries
+View daily caregiver digests
+View relevant wellbeing information
+Manage information associated with the elders they care for
 
-See the environment configuration used by the backend and frontend for the required variables.
+Elder
 
-## Memory System
+The elder interface provides a simplified experience focused primarily on interacting with the assistant.
 
-ElderlyCompanion uses two levels of conversational context.
+Depending on the profile type, the elder can also manage their own profile information.
 
-### Current Conversation
+Voice Interfaces
 
-The current conversation is kept in the LLM context so the assistant can maintain continuity during an active conversation.
+The frontend provides two voice interaction options.
 
-### Long-Term Memory
+Browser Conversation
 
-Completed conversations can be summarized and converted into vector embeddings.
+The "Разговарај" interface establishes a WebSocket connection with the backend and handles the browser-based voice conversation.
 
-When the elder says something new, the system can search these embeddings for semantically relevant past conversations.
+Browser microphone
+        ↓
+VoiceChat
+        ↓
+WebSocket
+        ↓
+Backend
+        ↓
+Audio response
+        ↓
+Browser speaker
+ESP32 Conversation
 
-For example:
+The "Разговарај преку уред" interface starts a conversation through the connected ESP32 device.
 
-```text
-Previous conversation:
+The frontend communicates with the backend to start and monitor the device conversation session.
 
-"I'll visit my granddaughter Maria next Sunday for her birthday."
+Supabase Integration
 
-Later:
+Supabase is used by the frontend for authentication and database access.
 
-Elder:
+Frontend database helpers are located in:
 
-"What should I buy Maria for her birthday?"
-```
+frontend/db/
 
-The system can retrieve the relevant previous conversation even if it was not the most recent conversation.
+They provide access to application data such as:
 
-## Based on ElatoAI
+Elder profiles
+Caregiver profiles
+Medications
+Family members
+Conversations
+Conversation summaries
+Daily caregiver digests
+Devices
 
-ElderlyCompanion was developed based on the open-source **ElatoAI** project.
+Authentication and Supabase client configuration are located in the corresponding utility files under:
 
-Parts of the original project were used as a foundation and subsequently adapted and extended for ElderlyCompanion. This includes portions of the **Arduino/ESP32 firmware**, the **hardware integration and communication approach**, as well as parts of the **frontend and backend/server architecture and logic**.
+frontend/utils/
+Main Components
+VoiceChat
 
-The original project provided the foundation for connecting the physical voice device with the software system. ElderlyCompanion extends and modifies this foundation with its own user interface, Macedonian language support, elder profiles, conversational memory, semantic retrieval, conversation summaries, and other application-specific functionality.
+Handles browser-based voice conversations, including the WebSocket connection, audio input/output, conversation state, and displaying the conversation interface.
 
-Original project: [ElatoAI by akdeb](https://github.com/akdeb/ElatoAI)
+DeviceVoiceChat
+
+Handles the frontend interface for starting and monitoring conversations through the ESP32 device.
+
+Dashboard Components
+
+Dashboard components display and manage elder and caregiver information, including profiles, medications, family members, summaries, and daily digests.
+
+C

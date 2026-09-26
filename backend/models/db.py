@@ -132,7 +132,7 @@ def summarize_session(elder_id: str, session_id: str) -> str | None:
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-4o",
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": transcript},
@@ -480,7 +480,7 @@ def summarize_daily_activity(
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-4o",
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": summaries_text},

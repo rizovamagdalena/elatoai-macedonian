@@ -62,7 +62,7 @@ export default function MedicationsSection({
         <div className="font-[family-name:var(--font-sans)]">
             {medications.length === 0 && !showForm && (
                 <p className="text-sm text-[#22281F]/50">
-                    Nothing on file yet.
+                    Сè уште нема внесено лекови.
                 </p>
             )}
 
@@ -117,46 +117,49 @@ export default function MedicationsSection({
                 <div className="mt-4 flex flex-col gap-4 rounded-2xl bg-[#EFEAE0]/60 p-5">
                     <div className="flex flex-col gap-1.5">
                         <Label htmlFor="med-name" className="text-[#22281F]/70">
-                            Name
+                            Име
                         </Label>
                         <Input
                             id="med-name"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
-                            placeholder="e.g. Aspirin"
+                            placeholder="на пр. Аспирин"
                             className="rounded-lg border-[#22281F]/15 bg-white focus-visible:ring-[#4B6355]"
                         />
                     </div>
 
                     <div className="flex flex-col gap-1.5">
                         <Label htmlFor="med-dosage" className="text-[#22281F]/70">
-                            Dosage
+                            Дозирање
                         </Label>
                         <Input
                             id="med-dosage"
                             value={dosage}
                             onChange={(e) => setDosage(e.target.value)}
-                            placeholder="e.g. 100mg"
+                            placeholder="на пр. 100mg"
                             className="rounded-lg border-[#22281F]/15 bg-white focus-visible:ring-[#4B6355]"
                         />
                     </div>
 
                     <div className="flex flex-col gap-1.5">
                         <Label htmlFor="med-times" className="text-[#22281F]/70">
-                            Times (comma separated)
+                            Времиња (одделени со запирка)
                         </Label>
                         <Input
                             id="med-times"
                             value={times}
                             onChange={(e) => setTimes(e.target.value)}
-                            placeholder="e.g. 08:00, 20:00"
+                            placeholder="на пр. 08:00, 20:00"
                             className="rounded-lg border-[#22281F]/15 bg-white focus-visible:ring-[#4B6355]"
                         />
                     </div>
 
                     <div className="flex flex-col gap-1.5">
                         <Label htmlFor="med-notes" className="text-[#22281F]/70">
-                            Notes (optional)
+                            Белешки{" "}
+                            <span className="font-normal text-[#22281F]/40">
+                                (незадолжително)
+                            </span>
                         </Label>
                         <Input
                             id="med-notes"
@@ -171,7 +174,7 @@ export default function MedicationsSection({
                         disabled={submitting}
                         className="rounded-full bg-[#4B6355] text-[#F7F4EC] hover:bg-[#3B4F44]"
                     >
-                        {submitting ? "Saving..." : "Save medication"}
+                        {submitting ? "Се зачувува..." : "Зачувај лек"}
                     </Button>
                 </div>
             )}
@@ -183,7 +186,7 @@ export default function MedicationsSection({
                 className="mt-4 gap-1.5 rounded-full text-[#4B6355] hover:bg-[#DCE3D6]/60 hover:text-[#3B4F44]"
             >
                 <Plus size={14} />
-                {showForm ? "Cancel" : "Add medication"}
+                {showForm ? "Откажи" : "Додади лек"}
             </Button>
         </div>
     );
